@@ -3,8 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { AppData, Settings } from '../shared/types'
 import { buildDefaultPlaybook } from './defaultPlaybook'
-
-const DATA_VERSION = 1
+import { DATA_VERSION, migrateData } from './dataMigrations'
 
 export function dataDir(): string {
   return path.join(app.getPath('userData'), 'data')
@@ -58,6 +57,9 @@ export function loadDB(): AppData {
     persistNow()
   }
   if (!db.settings) db.settings = defaultSettings()
+  const migrated = migrateData(db)
+  db = migrated.data
+  if (migrated.changed) persistNow()
   return db
 }
 

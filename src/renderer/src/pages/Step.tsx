@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ChevronRight, Target, Info, CheckSquare, Square, Sparkles,
-  FileText, Plus, CheckCircle2, CircleDot, Save
+  FileText, Plus, CheckCircle2, CircleDot, ChevronDown
 } from 'lucide-react'
 import { useApp, fmtDate } from '../store/app'
 import { Button, Card, Badge, StrengthBadge, EmptyState } from '../components/ui'
@@ -19,6 +19,7 @@ export function StepPage() {
   const [viewArtifact, setViewArtifact] = useState<string | null>(null)
   const [assist, setAssist] = useState('')
   const [assistBusy, setAssistBusy] = useState(false)
+  const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null)
 
   // 本地草稿状态（输入即时响应，失焦/切换时保存）
   const [draft, setDraft] = useState<ProjectStep | null>(null)
@@ -47,18 +48,13 @@ export function StepPage() {
   const evidences = data.evidences.filter((e) => e.projectId === project.id && e.stageId === stage.id)
   const artifacts = data.artifacts.filter((a) => a.projectId === project.id && a.stageId === stage.id)
 
-  const persist = (patch: Partial<ProjectStep>) => {
+  const persist = (checklist: ProjectStep['checklist'], answers: ProjectStep['answers']) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       try {
-        const latest = data.projects.find((p) => p.id === projectId)?.workflowSnapshot.stages.find((s) => s.id === stageId)?.steps.find((s) => s.id === stepId)
-        if (!latest) return
         await window.api.stepSave({
           projectId: project.id, stageId: stage.id, stepId: stepId!,
-          patch: {
-            checklist: patch.checklist ?? latest.checklist,
-            answers: patch.answers ?? latest.answers
-          }
+          patch: { checklist, answers }
         })
         await load()
       } catch (err) { toast((err as Error).message, 'bad') }
@@ -66,19 +62,38 @@ export function StepPage() {
   }
 
   const toggleCheck = (cid: string) => {
+    const current = draft.checklist.find((c) => c.id === cid)
+    if (!current) return
+    if (!current.done && current.responseRequired && !current.response?.trim()) {
+      setExpandedResponseId(cid)
+      toast('请先填写完成说明，再勾选此项', 'bad')
+      return
+    }
     const checklist = draft.checklist.map((c) => (c.id === cid ? { ...c, done: !c.done } : c))
     setDraft({ ...draft, checklist })
-    persist({ checklist })
+    persist(checklist, draft.answers)
+  }
+
+  const setChecklistResponse = (cid: string, value: string) => {
+    const checklist = draft.checklist.map((c) => (c.id === cid ? { ...c, response: value } : c))
+    setDraft({ ...draft, checklist })
+    persist(checklist, draft.answers)
   }
 
   const setAnswer = (qid: string, value: string) => {
     const answers = { ...draft.answers, [qid]: value }
     setDraft({ ...draft, answers })
-    persist({ answers })
+    persist(draft.checklist, answers)
   }
 
   const complete = async () => {
     const willComplete = draft.status !== 'done'
+    const invalid = willComplete && draft.checklist.find((c) => c.done && c.responseRequired && !c.response?.trim())
+    if (invalid) {
+      setExpandedResponseId(invalid.id)
+      toast(`请先填写「${invalid.text}」的完成说明`, 'bad')
+      return
+    }
     try {
       // 先落盘草稿再标记完成
       await window.api.stepSave({
@@ -159,13 +174,40 @@ export function StepPage() {
         </div>
       </div>
       <Card className="p-4 mb-6">
-        <div className="space-y-2">
-          {draft.checklist.map((c) => (
-            <label key={c.id} className="flex items-center gap-3 text-[13.5px] cursor-pointer group" onClick={() => toggleCheck(c.id)}>
-              {c.done ? <CheckSquare size={17} className="text-ok flex-shrink-0" /> : <Square size={17} className="text-line-2 group-hover:text-primary flex-shrink-0" />}
-              <span className={c.done ? 'line-through text-ink-3' : ''}>{c.text}</span>
-            </label>
-          ))}
+        <div className="space-y-2.5">
+          {draft.checklist.map((c) => {
+            const responseOpen = expandedResponseId === c.id
+            return (
+              <div key={c.id} className={`rounded-[10px] border transition-colors ${responseOpen ? 'border-primary-line bg-primary-soft/20' : 'border-transparent'}`}>
+                <div className="flex items-center gap-3 px-2 py-1.5 text-[13.5px] group">
+                  <button type="button" aria-label={c.done ? `取消完成 ${c.text}` : `完成 ${c.text}`} onClick={() => toggleCheck(c.id)}>
+                    {c.done ? <CheckSquare size={17} className="text-ok flex-shrink-0" /> : <Square size={17} className="text-line-2 group-hover:text-primary flex-shrink-0" />}
+                  </button>
+                  <button type="button" className="flex-1 min-w-0 text-left" onClick={() => c.responseRequired ? setExpandedResponseId(responseOpen ? null : c.id) : toggleCheck(c.id)}>
+                    <span className={c.done ? 'line-through text-ink-3' : ''}>{c.text}</span>
+                  </button>
+                  {c.responseRequired && (
+                    <button type="button" onClick={() => setExpandedResponseId(responseOpen ? null : c.id)} className={`flex items-center gap-1 text-[11.5px] ${c.response?.trim() ? 'text-ok' : 'text-primary'}`}>
+                      {c.response?.trim() ? '已填写' : '填写完成说明'}
+                      <ChevronDown size={13} className={`transition-transform ${responseOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                </div>
+                {c.responseRequired && responseOpen && (
+                  <div className="px-2 pb-2.5 pl-9">
+                    <div className="text-[11.5px] text-ink-3 mb-1.5">{c.responsePrompt || '请填写该检查项的完成说明或实际结果。'}</div>
+                    <textarea
+                      rows={3}
+                      autoFocus
+                      value={c.response || ''}
+                      onChange={(e) => setChecklistResponse(c.id, e.target.value)}
+                      placeholder="填写实际完成结果、判断依据或可追溯的记录……"
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </Card>
 

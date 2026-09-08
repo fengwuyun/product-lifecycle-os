@@ -1,4 +1,5 @@
 import type { Playbook, PlaybookStageDef } from '../shared/types'
+import { enrichChecklistDefinition } from '../shared/checklistResponses'
 
 // 默认 Playbook：8 个阶段，内容源自 PRD §6 / §8
 // id 采用稳定短码，便于项目快照引用
@@ -906,7 +907,13 @@ export function buildDefaultPlaybook(): Playbook {
     version: 1,
     description:
       '产品创意 → 需求验证 → 竞品研究 → 产品定义 → MVP → 开发 → 首批用户 → 市场验证。基于 Evidence > Opinion 原则的可执行方法论。',
-    stages,
+    stages: stages.map((stage) => ({
+      ...stage,
+      steps: stage.steps.map((step) => ({
+        ...step,
+        checklist: step.checklist.map(enrichChecklistDefinition)
+      }))
+    })),
     history: [{ version: 1, savedAt: now, note: '初始版本' }],
     createdAt: now,
     updatedAt: now

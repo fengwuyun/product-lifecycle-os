@@ -6,8 +6,9 @@ import { readImageBase64 } from './artifacts'
 // ─── LLM 调用（OpenAI 兼容接口） ───
 
 interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+interface ChatResult { content: string; reasoningContent: string; choiceCount: number }
 
-async function chat(messages: ChatMessage[], opts?: { maxTokens?: number; temperature?: number }): Promise<string> {
+async function requestChat(messages: ChatMessage[], opts?: { maxTokens?: number; temperature?: number }): Promise<ChatResult> {
   const { settings } = getDB()
   const { baseUrl, apiKey, model } = settings.ai
   if (!baseUrl || !apiKey || !model) {
@@ -33,19 +34,34 @@ async function chat(messages: ChatMessage[], opts?: { maxTokens?: number; temper
       const text = await resp.text().catch(() => '')
       throw new Error(`AI 服务返回 ${resp.status}：${text.slice(0, 300)}`)
     }
-    const json = (await resp.json()) as { choices?: { message?: { content?: string } }[] }
-    const content = json.choices?.[0]?.message?.content
-    if (!content) throw new Error('AI 返回内容为空')
-    return content
+    let json: { choices?: { message?: { content?: string; reasoning_content?: string } }[] }
+    try {
+      json = (await resp.json()) as typeof json
+    } catch {
+      throw new Error('AI 服务返回的不是有效 JSON')
+    }
+    if (!Array.isArray(json.choices) || json.choices.length === 0) throw new Error('AI 服务响应缺少 choices')
+    return {
+      content: json.choices[0]?.message?.content || '',
+      reasoningContent: json.choices[0]?.message?.reasoning_content || '',
+      choiceCount: json.choices.length
+    }
   } finally {
     clearTimeout(timer)
   }
 }
 
+async function chat(messages: ChatMessage[], opts?: { maxTokens?: number; temperature?: number }): Promise<string> {
+  const result = await requestChat(messages, opts)
+  if (!result.content.trim()) throw new Error('AI 返回内容为空')
+  return result.content
+}
+
 export async function testConnection(): Promise<{ ok: boolean; message: string }> {
   try {
-    const r = await chat([{ role: 'user', content: '请只回复：OK' }], { maxTokens: 10, temperature: 0 })
-    return { ok: true, message: `连接成功，模型返回：${r.trim().slice(0, 50)}` }
+    const r = await requestChat([{ role: 'user', content: '请只回复：OK' }], { maxTokens: 1024, temperature: 0 })
+    const text = r.content.trim()
+    return { ok: true, message: text ? `连接成功，模型返回：${text.slice(0, 50)}` : '连接成功，服务已响应但未返回文本' }
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) }
   }
@@ -96,6 +112,19 @@ function buildStageContext(projectId: string, stageId: string): string {
       最低证据数要求: stage.minEvidence,
       当前证据数: evidences.length
     },
+    Steps_执行记录: stage.steps.map((step) => ({
+      名称: step.name,
+      状态: step.status,
+      检查项: step.checklist.map((item) => ({
+        内容: item.text,
+        已完成: item.done,
+        完成说明: item.response?.trim() || ''
+      })),
+      问题回答: step.questions.map((question) => ({
+        问题: question.q,
+        回答: step.answers[question.id]?.trim() || ''
+      }))
+    })),
     Claims_假设: claims.map((c) => ({ id: c.id, 内容: c.statement, 备注: c.note })),
     Evidence_证据: evidences.map((e) => ({
       id: e.id,
@@ -201,7 +230,7 @@ export async function stepAssist(p: { projectId: string; stageId: string; stepId
       `当前阶段：${stage.name} —— 目标：${stage.objective}`,
       `当前 Step：${step.name}\n目标：${step.goal}\n说明：${step.description}`,
       `需要回答的问题：${step.questions.map((q) => q.q).join('；') || '（无）'}`,
-      `已有 Checklist：${step.checklist.map((c) => `${c.done ? '[x]' : '[ ]'} ${c.text}`).join('；')}`,
+      `已有 Checklist：${step.checklist.map((c) => `${c.done ? '[x]' : '[ ]'} ${c.text}${c.response?.trim() ? `（完成说明：${c.response.trim()}）` : ''}`).join('；')}`,
       `本阶段已有证据：${stageEvidences.map((e) => `${e.title}（${e.strength}）`).join('；') || '暂无'}`,
       `用户已填写：${JSON.stringify(step.answers, null, 1)}`
     ].join('\n\n')

@@ -25,7 +25,7 @@ export interface PlaybookStepDef {
   name: string
   goal: string
   description: string
-  checklist: { id: string; text: string }[]
+  checklist: { id: string; text: string; responseRequired?: boolean; responsePrompt?: string }[]
   questions: { id: string; q: string; hint?: string }[]
 }
 
@@ -60,7 +60,14 @@ export interface Playbook {
 // ─── 项目侧（Playbook Snapshot + 运行时状态） ───
 
 export interface ProjectTodo { id: string; text: string; done: boolean }
-export interface ProjectChecklistItem { id: string; text: string; done: boolean }
+export interface ProjectChecklistItem {
+  id: string
+  text: string
+  done: boolean
+  responseRequired?: boolean
+  responsePrompt?: string
+  response?: string
+}
 export interface ProjectStep {
   id: string
   name: string

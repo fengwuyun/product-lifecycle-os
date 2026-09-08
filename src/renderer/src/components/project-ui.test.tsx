@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
@@ -6,6 +6,8 @@ import { CreateProjectModal } from './modals'
 import { Sidebar } from './Sidebar'
 import { getMenuPosition, PortfolioPage } from '../pages/Portfolio'
 import { useApp } from '../store/app'
+import { useSidebarWorkspace } from '../store/sidebarWorkspace'
+import { reconcileChecklistItems } from '../pages/Playbook'
 import type { AppData, Project } from '@shared/types'
 
 const project = {
@@ -24,7 +26,9 @@ const emptyData = {
 } as AppData
 
 beforeEach(() => {
+  localStorage.clear()
   useApp.setState({ data: emptyData, loading: false, toasts: [], portfolioView: 'list' })
+  useSidebarWorkspace.setState({ version: 1, projectIds: [], expandedProjectIds: [] })
 })
 
 test('创建成功后先刷新全局数据，再进入新项目', async () => {
@@ -73,4 +77,65 @@ test('侧边栏主要导航使用中文', () => {
   expect(screen.getByText('生命周期方法')).toBeTruthy()
   expect(screen.getByText('设置')).toBeTruthy()
   expect(screen.getByText('证据胜于观点')).toBeTruthy()
+})
+
+test('侧边栏可同时展示多个项目，拖动时自动折叠当前项目', async () => {
+  const stages = Array.from({ length: 8 }, (_, index) => ({
+    id: `stage-${index + 1}`, name: `阶段 ${index + 1}`, short: '', order: index + 1,
+    introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [], steps: [],
+    deliverables: [], exitCriteria: [], minEvidence: 0, status: index === 0 ? 'active' : 'locked'
+  })) as Project['workflowSnapshot']['stages']
+  const another = { ...project, id: 'prj-two', name: '第二个项目', workflowSnapshot: { ...project.workflowSnapshot, stages } }
+  const first = { ...project, workflowSnapshot: { ...project.workflowSnapshot, stages } }
+  useApp.setState({ data: { ...emptyData, projects: [first, another] } })
+  useSidebarWorkspace.setState({ version: 1, projectIds: [first.id, another.id], expandedProjectIds: [first.id, another.id] })
+  window.api = { getData: vi.fn() } as unknown as typeof window.api
+  render(<MemoryRouter initialEntries={[`/project/${first.id}`]}><Sidebar /></MemoryRouter>)
+
+  expect(screen.getByText('测试项目')).toBeTruthy()
+  expect(screen.getByText('第二个项目')).toBeTruthy()
+  expect(screen.getAllByText('1. 阶段 1')).toHaveLength(2)
+  const projectRow = screen.getByText('测试项目').closest('[draggable="true"]') as HTMLElement
+  fireEvent.dragStart(projectRow, { dataTransfer: { effectAllowed: '', setData: vi.fn() } })
+  await waitFor(() => expect(useSidebarWorkspace.getState().expandedProjectIds).not.toContain(first.id))
+  useSidebarWorkspace.getState().moveProject(first.id, another.id)
+  expect(useSidebarWorkspace.getState().projectIds).toEqual([another.id, first.id])
+})
+
+test('右键移除只改变侧边栏工作区，不删除项目数据', async () => {
+  useApp.setState({ data: { ...emptyData, projects: [project] } })
+  useSidebarWorkspace.setState({ version: 1, projectIds: [project.id], expandedProjectIds: [project.id] })
+  window.api = { getData: vi.fn() } as unknown as typeof window.api
+  render(<MemoryRouter initialEntries={[`/project/${project.id}`]}><Sidebar /></MemoryRouter>)
+  await userEvent.pointer({ target: screen.getByText('测试项目'), keys: '[MouseRight]' })
+  await userEvent.click(screen.getByRole('menuitem', { name: '从侧边栏移除' }))
+  expect(useSidebarWorkspace.getState().projectIds).not.toContain(project.id)
+  expect(useApp.getState().data?.projects).toContainEqual(project)
+  useApp.setState({ data: { ...emptyData, projects: [{ ...project }] } })
+  await waitFor(() => expect(useSidebarWorkspace.getState().projectIds).not.toContain(project.id))
+})
+
+test('项目菜单支持键盘打开、自动聚焦，并在滚动时关闭', async () => {
+  useApp.setState({ data: { ...emptyData, projects: [project] } })
+  useSidebarWorkspace.setState({ version: 1, projectIds: [project.id], expandedProjectIds: [] })
+  window.api = { getData: vi.fn() } as unknown as typeof window.api
+  render(<MemoryRouter initialEntries={[`/project/${project.id}`]}><Sidebar /></MemoryRouter>)
+  const row = screen.getByLabelText('测试项目 项目菜单')
+  row.focus()
+  fireEvent.keyDown(row, { key: 'F10', shiftKey: true })
+  const menu = await screen.findByRole('menu', { name: '项目侧边栏操作' })
+  await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true))
+  fireEvent.scroll(window)
+  await waitFor(() => expect(screen.queryByRole('menu', { name: '项目侧边栏操作' })).toBeNull())
+})
+
+test('Playbook 检查项删除和重排时按稳定内容保留元数据', () => {
+  const previous = [
+    { id: 'a', text: '第一项', responseRequired: true, responsePrompt: '第一项说明' },
+    { id: 'b', text: '第二项', responseRequired: false },
+    { id: 'c', text: '第三项', responseRequired: true, responsePrompt: '第三项说明' }
+  ]
+  const next = reconcileChecklistItems(previous, ['第三项', '第二项'])
+  expect(next.map((item) => item.id)).toEqual(['c', 'b'])
+  expect(next[0].responsePrompt).toBe('第三项说明')
 })

@@ -1,6 +1,6 @@
 import type {
   AppData, Project, ProjectStage, ProjectStep, ProjectTodo, StageGate, StageStatus,
-  DecisionType, Priority, ProjectStatus, Claim, Evidence
+  DecisionType, Priority, ProjectStatus, Claim, Evidence, ProjectChecklistItem
 } from '../../shared/types'
 import { getDB, saveDB, id, nowISO, flushDB } from '../store'
 import { DEMO_PROJECT } from '../defaultPlaybook'
@@ -89,7 +89,7 @@ export function createProject(input: { name: string; description: string; priori
       name: s.name,
       goal: s.goal,
       description: s.description,
-      checklist: s.checklist.map((c) => ({ ...c, done: false })),
+      checklist: s.checklist.map((c) => ({ ...c, done: false, response: '' })),
       questions: s.questions.map((q) => ({ ...q })),
       answers: {},
       status: 'todo' as const
@@ -186,7 +186,7 @@ export function stageUpdate(p: { projectId: string; stageId: string; patch: { to
   saveDB()
 }
 
-export function stepSave(p: { projectId: string; stageId: string; stepId: string; patch: { checklist?: { id: string; text: string; done: boolean }[]; answers?: Record<string, string> } }): void {
+export function stepSave(p: { projectId: string; stageId: string; stepId: string; patch: { checklist?: ProjectChecklistItem[]; answers?: Record<string, string> } }): void {
   const project = findProject(p.projectId)
   const stage = findStage(project, p.stageId)
   const step = stage.steps.find((s) => s.id === p.stepId)
@@ -202,6 +202,10 @@ export function stepComplete(p: { projectId: string; stageId: string; stepId: st
   const stage = findStage(project, p.stageId)
   const step = stage.steps.find((s) => s.id === p.stepId)
   if (!step) throw new Error('Step 不存在')
+  if (p.completed) {
+    const invalid = step.checklist.find((c) => c.done && c.responseRequired && !c.response?.trim())
+    if (invalid) throw new Error(`请先填写「${invalid.text}」的完成说明`)
+  }
   step.status = p.completed ? 'done' : 'todo'
   step.completedAt = p.completed ? nowISO() : undefined
   if (p.completed && stage.status === 'active') {
@@ -359,7 +363,10 @@ export function createDemoProject(): { projectId: string } {
   for (const s of st1.steps) {
     s.status = 'done'
     s.completedAt = nowISO()
-    for (const c of s.checklist) c.done = true
+    for (const c of s.checklist) {
+      c.done = true
+      if (c.responseRequired && !c.response) c.response = `已完成：${c.text}`
+    }
   }
   const q = (sid: string, qid: string) => st1.steps.find((s) => s.id === sid)?.questions.find((x) => x.id === qid)?.q || ''
   const setA = (sid: string, qid: string, v: string) => {
@@ -399,7 +406,10 @@ export function createDemoProject(): { projectId: string } {
   // Stage 2: 进行中
   st2.todos = st2.todos.map((t, i) => ({ ...t, done: i < 3 }))
   const s1 = st2.steps[0]
-  for (const c of s1.checklist) c.done = true
+  for (const c of s1.checklist) {
+    c.done = true
+    if (c.responseRequired && !c.response) c.response = `已完成：${c.text}`
+  }
   s1.answers['q211'] = '访谈了 4 位小时工：2 位餐饮、1 位仓储、1 位展会。全部用备忘录/微信记录，3 位表示曾被少算工资但没凭据只能认了。'
   s1.answers['q212'] = '"多一天是一天，谁为了几十块钱去吵啊。"——仓储阿姨，但她说如果有个东西自动对账她天天用。'
   s1.status = 'done'

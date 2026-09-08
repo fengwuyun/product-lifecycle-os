@@ -148,11 +148,13 @@ function renderStageSection(project: Project, stage: ProjectStage, claims: Claim
 
   const stepRows = stage.steps.map((s) => {
     const answers = Object.entries(s.answers).filter(([, v]) => v && v.trim())
+    const checklistResponses = s.checklist.filter((c) => c.response?.trim())
     return `<tr><td style="white-space:nowrap"><b>${esc(s.name)}</b><br/><span class="small ${s.status === 'done' ? 'todo-done' : 'muted'}">${s.status === 'done' ? '已完成' : '进行中'}</span></td><td>` +
+      (checklistResponses.length ? checklistResponses.map((c) => `<div class="small muted" style="margin-bottom:4px">检查项：${esc(c.text)}</div><div style="margin-bottom:10px">${nl2br(c.response || '')}</div>`).join('') : '') +
       (answers.length ? answers.map(([qid, v]) => {
         const q = s.questions.find((x) => x.id === qid)?.q || qid
         return `<div class="small muted" style="margin-bottom:4px">Q：${esc(q)}</div><div style="margin-bottom:10px">${nl2br(v)}</div>`
-      }).join('') : '<span class="muted small">未填写</span>') +
+      }).join('') : checklistResponses.length ? '' : '<span class="muted small">未填写</span>') +
       '</td></tr>'
   }).join('')
   rows.push(`<div class="sec"><div class="lab">用户填写内容（Steps）</div><table><thead><tr><th style="width:180px">Step</th><th>回答</th></tr></thead><tbody>${stepRows}</tbody></table></div>`)

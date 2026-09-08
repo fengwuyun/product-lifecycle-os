@@ -10,6 +10,17 @@ import type { PlaybookStageDef, PlaybookStepDef } from '@shared/types'
 let tmpSeq = 1
 const tmpId = (p: string) => `${p}_tmp${tmpSeq++}_${Math.random().toString(36).slice(2, 6)}`
 
+export function reconcileChecklistItems(previous: PlaybookStepDef['checklist'], lines: string[]): PlaybookStepDef['checklist'] {
+  const remaining = [...previous]
+  return lines.map((text, index) => {
+    const exactIndex = remaining.findIndex((item) => item.text === text)
+    if (exactIndex >= 0) return { ...remaining.splice(exactIndex, 1)[0], text }
+    const renamedIndex = remaining.findIndex((item) => !lines.includes(item.text))
+    if (renamedIndex >= 0) return { ...remaining.splice(renamedIndex, 1)[0], text }
+    return { id: tmpId(`c${index}`), text }
+  })
+}
+
 export function PlaybookPage() {
   const { data, load, toast } = useApp()
   const [draft, setDraft] = useState<PlaybookStageDef[] | null>(null)
@@ -239,13 +250,23 @@ export function PlaybookPage() {
                           <div className="grid md:grid-cols-2 gap-3">
                             <Field label="Checklist" hint="每行一项">
                               <textarea rows={3} value={step.checklist.map((c) => c.text).join('\n')}
-                                onChange={(e) => editStage({ steps: stage.steps.map((x, j) => (j === si ? { ...x, checklist: e.target.value.split('\n').filter((t) => t.trim()).map((t, k) => ({ id: step.checklist[k]?.id || tmpId('c'), text: t })) } : x)) })} />
+                                onChange={(e) => editStage({ steps: stage.steps.map((x, j) => (j === si ? { ...x, checklist: reconcileChecklistItems(step.checklist, e.target.value.split('\n').map((t) => t.trim()).filter(Boolean)) } : x)) })} />
                             </Field>
                             <Field label="问题列表" hint="每行一个问题">
                               <textarea rows={3} value={step.questions.map((q) => q.q).join('\n')}
                                 onChange={(e) => editStage({ steps: stage.steps.map((x, j) => (j === si ? { ...x, questions: e.target.value.split('\n').filter((t) => t.trim()).map((t, k) => ({ id: step.questions[k]?.id || tmpId('q'), q: t })) } : x)) })} />
                             </Field>
                           </div>
+                          {step.checklist.length > 0 && <div className="mt-3 rounded-[9px] border border-line bg-[#faf9f6] p-3">
+                            <div className="text-[12px] font-semibold mb-2">检查项完成说明</div>
+                            <div className="space-y-2">{step.checklist.map((item, ci) => <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
+                              <div className="min-w-0">
+                                <div className="text-[11.5px] text-ink-2 truncate mb-1">{item.text}</div>
+                                {item.responseRequired && <input type="text" value={item.responsePrompt || ''} placeholder="填写引导，例如：写明结果和判断依据" onChange={(e) => editStage({ steps: stage.steps.map((x, j) => j === si ? { ...x, checklist: x.checklist.map((c, k) => k === ci ? { ...c, responsePrompt: e.target.value } : c) } : x) })} />}
+                              </div>
+                              <label className="flex items-center gap-1.5 text-[11.5px] text-ink-2 cursor-pointer"><input type="checkbox" checked={Boolean(item.responseRequired)} onChange={(e) => editStage({ steps: stage.steps.map((x, j) => j === si ? { ...x, checklist: x.checklist.map((c, k) => k === ci ? { ...c, responseRequired: e.target.checked, responsePrompt: e.target.checked ? (c.responsePrompt || '请填写该检查项的完成说明或实际结果。') : c.responsePrompt } : c) } : x) })} /> 需要说明</label>
+                            </div>)}</div>
+                          </div>}
                         </div>
                       )}
                     </div>
