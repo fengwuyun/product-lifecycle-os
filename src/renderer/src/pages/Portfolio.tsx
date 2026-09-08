@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   FolderKanban, ChevronRight, Play, PauseCircle, PlayCircle, XCircle,
@@ -200,6 +201,7 @@ function RowActions({ project }: { project: Project }) {
   const { load, toast } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 })
   const navigate = useNavigate()
 
   const setStatus = async (status: ProjectStatus, label: string) => {
@@ -221,12 +223,16 @@ function RowActions({ project }: { project: Project }) {
 
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <button className="p-1.5 rounded-lg text-ink-3 hover:bg-black/5 hover:text-ink" onClick={() => setMenuOpen((v) => !v)}>
+      <button aria-label="打开项目操作菜单" className="p-1.5 rounded-lg text-ink-3 hover:bg-black/5 hover:text-ink" onClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        setMenuPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+        setMenuOpen((v) => !v)
+      }}>
         <MoreHorizontal size={16} />
       </button>
-      {menuOpen && <>
+      {menuOpen && createPortal(<>
         <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-        <div className="absolute right-0 top-8 z-50 w-44 bg-white rounded-xl border border-line shadow-xl py-1.5 anim-in text-[13px]">
+        <div role="menu" aria-label="项目操作" className="fixed z-50 w-44 bg-white rounded-xl border border-line shadow-xl py-1.5 anim-in text-[13px]" style={menuPosition}>
           <div className="px-3 pt-1 pb-1 text-[11px] font-semibold text-ink-3">优先级</div>
           {(['P1', 'P2', 'P3'] as Priority[]).map((p) => (
             <button key={p} className="w-full text-left px-3 py-1.5 hover:bg-[#faf9f6] flex items-center gap-2" onClick={() => setPriority(p)}>
@@ -241,7 +247,7 @@ function RowActions({ project }: { project: Project }) {
           <div className="h-px bg-line my-1" />
           <MenuItem icon={<Trash2 size={14} />} label="删除项目" danger onClick={() => { setMenuOpen(false); setConfirmDelete(true) }} />
         </div>
-      </>}
+      </>, document.body)}
       <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="删除项目" width={420}
         footer={<>
           <Button onClick={() => setConfirmDelete(false)}>取消</Button>

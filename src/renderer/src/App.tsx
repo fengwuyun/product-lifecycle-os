@@ -1,14 +1,15 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react'
 import { useApp } from './store/app'
 import { Sidebar } from './components/Sidebar'
 import { PortfolioPage } from './pages/Portfolio'
-import { PipelinePage } from './pages/Pipeline'
-import { StagePage } from './pages/Stage'
-import { StepPage } from './pages/Step'
-import { PlaybookPage } from './pages/Playbook'
-import { SettingsPage } from './pages/Settings'
+
+const PipelinePage = lazy(() => import('./pages/Pipeline').then((m) => ({ default: m.PipelinePage })))
+const StagePage = lazy(() => import('./pages/Stage').then((m) => ({ default: m.StagePage })))
+const StepPage = lazy(() => import('./pages/Step').then((m) => ({ default: m.StepPage })))
+const PlaybookPage = lazy(() => import('./pages/Playbook').then((m) => ({ default: m.PlaybookPage })))
+const SettingsPage = lazy(() => import('./pages/Settings').then((m) => ({ default: m.SettingsPage })))
 
 function ToastHost() {
   const { toasts, dismissToast } = useApp()
@@ -62,7 +63,8 @@ export default function App() {
       <div className="h-full flex">
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-y-auto">
-          <Routes>
+          <Suspense fallback={<div className="h-full flex items-center justify-center text-[13px] text-ink-3">正在打开页面…</div>}>
+            <Routes>
             <Route path="/" element={<PortfolioPage />} />
             <Route path="/project/:projectId" element={<PipelinePage />} />
             <Route path="/project/:projectId/stage/:stageId" element={<StagePage />} />
@@ -70,7 +72,8 @@ export default function App() {
             <Route path="/playbook" element={<PlaybookPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+          </Suspense>
         </main>
         <ToastHost />
       </div>

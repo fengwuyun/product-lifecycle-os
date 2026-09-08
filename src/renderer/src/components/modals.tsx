@@ -9,7 +9,7 @@ import { useApp, fmtDate } from '../store/app'
 // ─── 创建项目 ───
 
 export function CreateProjectModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: (id: string) => void }) {
-  const { data, toast } = useApp()
+  const { data, toast, load } = useApp()
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   const [priority, setPriority] = useState<Priority>('P1')
@@ -22,6 +22,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: { open: boolean
     setBusy(true)
     try {
       const r = await window.api.createProject({ name, description: desc, priority })
+      await load()
       toast('项目已创建', 'ok')
       reset()
       onCreated?.(r.projectId)

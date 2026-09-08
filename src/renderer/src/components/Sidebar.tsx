@@ -8,9 +8,9 @@ import { useApp } from '../store/app'
 import { CreateProjectModal } from './modals'
 
 const NAV = [
-  { to: '/', label: 'Portfolio', icon: LayoutDashboard, end: true },
-  { to: '/playbook', label: 'Playbook', icon: BookOpen },
-  { to: '/settings', label: 'Settings', icon: Settings }
+  { to: '/', label: '项目组合', icon: LayoutDashboard, end: true },
+  { to: '/playbook', label: '生命周期方法', icon: BookOpen },
+  { to: '/settings', label: '设置', icon: Settings }
 ]
 
 export function LogoMark({ size = 26 }: { size?: number }) {
@@ -105,7 +105,7 @@ export function Sidebar() {
       )}
 
       <div className="mt-auto px-6 pb-5 text-[10.5px] text-white/30 leading-relaxed">
-        <div className="flex items-center gap-1.5 mb-1"><Scale size={11} /> Evidence &gt; Opinion</div>
+        <div className="flex items-center gap-1.5 mb-1"><Scale size={11} /> 证据胜于观点</div>
         <div className="flex items-center gap-1.5"><Zap size={11} /> {data?.projects.length ?? 0} 个项目进行中</div>
       </div>
 
