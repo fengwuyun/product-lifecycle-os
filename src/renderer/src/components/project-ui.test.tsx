@@ -1,10 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { CreateProjectModal } from './modals'
 import { Sidebar } from './Sidebar'
-import { PortfolioPage } from '../pages/Portfolio'
+import { getMenuPosition, PortfolioPage } from '../pages/Portfolio'
 import { useApp } from '../store/app'
 import type { AppData, Project } from '@shared/types'
 
@@ -45,9 +45,25 @@ test('创建成功后先刷新全局数据，再进入新项目', async () => {
 test('项目操作菜单渲染到页面顶层，不受列表容器裁剪', async () => {
   useApp.setState({ data: { ...emptyData, projects: [project] } })
   render(<MemoryRouter><PortfolioPage /></MemoryRouter>)
-  await userEvent.click(screen.getByLabelText('打开项目操作菜单'))
+  const trigger = screen.getByLabelText('打开项目操作菜单')
+  let triggerTop = 100
+  vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => ({
+    top: triggerTop, bottom: triggerTop + 30, right: 1000, left: 970, width: 30, height: 30, x: 970, y: triggerTop, toJSON: () => ({})
+  }))
+  await userEvent.click(trigger)
   const menu = screen.getByRole('menu', { name: '项目操作' })
   expect(menu.parentElement).toBe(document.body)
+  triggerTop = 200
+  window.dispatchEvent(new Event('scroll'))
+  await waitFor(() => expect(menu.style.top).toBe('234px'))
+})
+
+test('底部空间不足时项目操作菜单向上展开', () => {
+  expect(getMenuPosition(
+    { top: 700, bottom: 730, right: 1000 },
+    { width: 176, height: 260 },
+    { width: 1200, height: 800 }
+  )).toEqual({ top: 436, right: 200 })
 })
 
 test('侧边栏主要导航使用中文', () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import {
@@ -11,6 +11,21 @@ import { CreateProjectModal } from '../components/modals'
 import type { Project, Priority, ProjectStatus } from '@shared/types'
 
 const STAGE_SHORTS = ['机会', '验证', '竞品', '定义', 'MVP', '开发', '软启动', '市场验证']
+
+export function getMenuPosition(
+  trigger: { top: number; bottom: number; right: number },
+  menu: { width: number; height: number },
+  viewport: { width: number; height: number }
+): { top: number; right: number } {
+  const margin = 8
+  const gap = 4
+  const opensUp = trigger.bottom + gap + menu.height > viewport.height - margin
+  const rawTop = opensUp ? trigger.top - menu.height - gap : trigger.bottom + gap
+  return {
+    top: Math.max(margin, Math.min(rawTop, viewport.height - menu.height - margin)),
+    right: Math.max(margin, viewport.width - trigger.right)
+  }
+}
 
 export function PortfolioPage() {
   const { data, portfolioView, setPortfolioView, toast, load } = useApp()
@@ -202,7 +217,28 @@ function RowActions({ project }: { project: Project }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 })
+  const triggerElement = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuRef.current || !triggerElement.current) return
+    const update = () => {
+      if (!menuRef.current || !triggerElement.current) return
+      setMenuPosition(getMenuPosition(
+        triggerElement.current.getBoundingClientRect(),
+        menuRef.current.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight }
+      ))
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [menuOpen])
 
   const setStatus = async (status: ProjectStatus, label: string) => {
     setMenuOpen(false)
@@ -225,14 +261,15 @@ function RowActions({ project }: { project: Project }) {
     <div className="relative" onClick={(e) => e.stopPropagation()}>
       <button aria-label="打开项目操作菜单" className="p-1.5 rounded-lg text-ink-3 hover:bg-black/5 hover:text-ink" onClick={(event) => {
         const rect = event.currentTarget.getBoundingClientRect()
-        setMenuPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+        triggerElement.current = event.currentTarget
+        setMenuPosition(getMenuPosition(rect, { width: 176, height: 280 }, { width: window.innerWidth, height: window.innerHeight }))
         setMenuOpen((v) => !v)
       }}>
         <MoreHorizontal size={16} />
       </button>
       {menuOpen && createPortal(<>
         <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-        <div role="menu" aria-label="项目操作" className="fixed z-50 w-44 bg-white rounded-xl border border-line shadow-xl py-1.5 anim-in text-[13px]" style={menuPosition}>
+        <div ref={menuRef} role="menu" aria-label="项目操作" className="fixed z-50 w-44 bg-white rounded-xl border border-line shadow-xl py-1.5 anim-in text-[13px]" style={menuPosition}>
           <div className="px-3 pt-1 pb-1 text-[11px] font-semibold text-ink-3">优先级</div>
           {(['P1', 'P2', 'P3'] as Priority[]).map((p) => (
             <button key={p} className="w-full text-left px-3 py-1.5 hover:bg-[#faf9f6] flex items-center gap-2" onClick={() => setPriority(p)}>
