@@ -257,6 +257,8 @@ export interface Api {
   playbookSave(p: { id: string; name: string; description: string; stages: PlaybookStageDef[]; note: string }): Promise<{ version: number }>
   reportExport(p: { projectId: string; withAiSummary: boolean }): Promise<{ path?: string; canceled?: boolean; error?: string }>
   settingsSave(p: { settings: Settings }): Promise<void>
+  backupCreate(): Promise<{ canceled?: boolean; path?: string; error?: string }>
+  backupRestore(): Promise<{ canceled?: boolean; restored?: boolean; safetyBackupPath?: string; error?: string }>
   openPath(p: { path: string }): Promise<void>
   revealDataFolder(): Promise<void>
   resetData(): Promise<void>

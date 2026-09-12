@@ -87,12 +87,21 @@ export function saveDB(): void {
   }, 250)
 }
 
-export function flushDB(): void {
+export function flushDB(strict = false): void {
   if (saveTimer) {
     clearTimeout(saveTimer)
     saveTimer = null
   }
-  try { persistNow() } catch (err) { console.error('[store] flush failed', err) }
+  try { persistNow() } catch (err) {
+    if (strict) throw new Error('数据保存失败')
+    console.error('[store] flush failed', err)
+  }
+}
+
+export function replaceLoadedDB(data: AppData): void {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = null
+  db = data
 }
 
 export function resetDB(): void {

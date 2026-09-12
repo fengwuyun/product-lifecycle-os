@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Settings as SettingsIcon, Bot, HardDrive, PlugZap, FolderOpen, Trash2, Info, ShieldCheck } from 'lucide-react'
 import { useApp } from '../store/app'
-import { Button, Card, Badge, Field } from '../components/ui'
+import { Button, Card, Badge, Field, Modal } from '../components/ui'
 import type { Settings as SettingsType } from '@shared/types'
 
 export function SettingsPage() {
@@ -12,6 +12,10 @@ export function SettingsPage() {
   const [dataPath, setDataPath] = useState('')
   const [versions, setVersions] = useState({ app: '', electron: '', node: '' })
   const [resetOpen, setResetOpen] = useState(false)
+  const [restoreOpen, setRestoreOpen] = useState(false)
+  const [backupBusy, setBackupBusy] = useState<'create' | 'restore' | null>(null)
+  const [backupPath, setBackupPath] = useState('')
+  const [safetyBackupPath, setSafetyBackupPath] = useState('')
 
   useEffect(() => {
     if (data) setAi({ ...data.settings.ai })
@@ -40,6 +44,35 @@ export function SettingsPage() {
     } catch (err) {
       setTestResult({ ok: false, message: (err as Error).message })
     } finally { setTesting(false) }
+  }
+
+  const createBackup = async () => {
+    setBackupBusy('create')
+    try {
+      const result = await window.api.backupCreate()
+      if (result.canceled) return
+      if (result.error) { toast(result.error, 'bad'); return }
+      if (result.path) { setBackupPath(result.path); toast('完整备份已创建', 'ok') }
+    } catch { toast('完整备份失败，请检查目录权限与磁盘空间', 'bad') }
+    finally { setBackupBusy(null) }
+  }
+
+  const restoreBackup = async () => {
+    setBackupBusy('restore')
+    setSafetyBackupPath('')
+    try {
+      const result = await window.api.backupRestore()
+      if (result.canceled) return
+      if (result.safetyBackupPath) setSafetyBackupPath(result.safetyBackupPath)
+      if (result.error) { toast(result.error, 'bad'); return }
+      if (result.restored) {
+        setRestoreOpen(false)
+        setTestResult(null)
+        await load()
+        toast('备份已恢复，恢复前的数据已另存为安全备份', 'ok')
+      }
+    } catch { toast('恢复操作未完成，请检查数据状态后重试', 'bad') }
+    finally { setBackupBusy(null) }
   }
 
   return (
@@ -71,8 +104,8 @@ export function SettingsPage() {
           <input type="text" value={ai.model} onChange={(e) => setAi({ ...ai, model: e.target.value })} placeholder="gpt-4o-mini" />
         </Field>
         <div className="flex items-center gap-2.5">
-          <Button variant="primary" onClick={save}>保存设置</Button>
-          <Button onClick={test} loading={testing}><PlugZap size={14} /> 测试连接</Button>
+          <Button variant="primary" onClick={save} disabled={!!backupBusy}>保存设置</Button>
+          <Button onClick={test} loading={testing} disabled={!!backupBusy}><PlugZap size={14} /> 测试连接</Button>
           {testResult && (
             <span className={`text-[12.5px] ${testResult.ok ? 'text-ok' : 'text-bad'} leading-snug`}>
               {testResult.ok ? '✓ ' : '✗ '}{testResult.message}
@@ -93,11 +126,34 @@ export function SettingsPage() {
         <div className="bg-[#faf9f6] border border-line rounded-[10px] px-4 py-3 text-[12.5px] font-mono text-ink-2 break-all mb-3.5">{dataPath}</div>
         <div className="flex items-center gap-2.5">
           <Button onClick={() => window.api.revealDataFolder()}><FolderOpen size={14} /> 打开数据文件夹</Button>
-          <Button variant="ghost" className="text-bad hover:bg-bad-soft" onClick={() => setResetOpen(true)}>
+          <Button variant="ghost" className="text-bad hover:bg-bad-soft" onClick={() => setResetOpen(true)} disabled={!!backupBusy}>
             <Trash2 size={14} /> 清空全部数据
           </Button>
         </div>
       </Card>
+
+      <Card className="p-5 mb-4" aria-busy={!!backupBusy}>
+        <div className="font-bold text-[15px] mb-2">完整备份与恢复</div>
+        <p className="text-[12.5px] text-ink-3 leading-relaxed mb-4">
+          完整备份包含全部项目、设置和资料（Artifacts）文件，可能包含 API Key，请妥善保管并勿公开分享。恢复会替换当前数据和设置，并自动创建恢复前的安全备份。
+        </p>
+        <div className="flex items-center gap-2.5">
+          <Button onClick={createBackup} loading={backupBusy === 'create'} disabled={!!backupBusy || testing}>创建完整备份</Button>
+          <Button onClick={() => setRestoreOpen(true)} loading={backupBusy === 'restore'} disabled={!!backupBusy || testing}>从备份恢复</Button>
+        </div>
+        <div role="status" className="text-[12.5px] text-ink-2 break-all mt-3 space-y-2">
+          {backupBusy && <p>{backupBusy === 'create' ? '正在创建完整备份…' : '正在验证并恢复备份…'}</p>}
+          {backupPath && <p>完整备份位置：{backupPath}</p>}
+          {safetyBackupPath && <p>恢复前的安全备份位置：{safetyBackupPath}</p>}
+        </div>
+      </Card>
+
+      <Modal open={restoreOpen} onClose={() => { if (!backupBusy) setRestoreOpen(false) }} title="从备份恢复？" footer={<>
+        <Button disabled={!!backupBusy} onClick={() => setRestoreOpen(false)}>取消</Button>
+        <Button variant="danger" loading={backupBusy === 'restore'} disabled={!!backupBusy} onClick={restoreBackup}>选择备份并恢复</Button>
+      </>}>
+        <p className="text-[13px] text-ink-2 leading-relaxed">请选择包含 data.json 和 artifacts 的完整备份文件夹。恢复会覆盖当前项目、资料和 AI 设置；尚未保存的设置不会保留。系统会先验证备份，再创建当前数据的安全备份，验证失败不会替换当前数据。</p>
+      </Modal>
 
       {/* 隐私与边界 */}
       <Card className="p-5 mb-4">
@@ -132,7 +188,7 @@ export function SettingsPage() {
           <Card className="relative p-6 w-[420px] anim-in">
             <div className="font-bold text-[16px] mb-2">清空全部数据？</div>
             <div className="text-[13px] text-ink-2 leading-relaxed mb-5">
-              所有项目、证据（Evidence）、资料（Artifacts）、决策记录都将被删除并恢复为初始状态。此操作不可恢复（建议先导出项目报告备份）。
+              所有项目、证据（Evidence）、资料（Artifacts）、决策记录都将被删除并恢复为初始状态。此操作不可恢复，建议先创建完整备份。
             </div>
             <div className="flex justify-end gap-2">
               <Button onClick={() => setResetOpen(false)}>取消</Button>
