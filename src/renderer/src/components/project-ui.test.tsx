@@ -129,13 +129,13 @@ test('项目菜单支持键盘打开、自动聚焦，并在滚动时关闭', as
   await waitFor(() => expect(screen.queryByRole('menu', { name: '项目侧边栏操作' })).toBeNull())
 })
 
-test('Playbook 检查项删除和重排时按稳定内容保留元数据', () => {
+test('Playbook 检查项删除和重排时保留稳定 ID', () => {
   const previous = [
-    { id: 'a', text: '第一项', responseRequired: true, responsePrompt: '第一项说明' },
-    { id: 'b', text: '第二项', responseRequired: false },
-    { id: 'c', text: '第三项', responseRequired: true, responsePrompt: '第三项说明' }
+    { id: 'a', text: '第一项' },
+    { id: 'b', text: '第二项' },
+    { id: 'c', text: '第三项' }
   ]
   const next = reconcileChecklistItems(previous, ['第三项', '第二项'])
   expect(next.map((item) => item.id)).toEqual(['c', 'b'])
-  expect(next[0].responsePrompt).toBe('第三项说明')
+  expect(next.map((item) => item.text)).toEqual(['第三项', '第二项'])
 })

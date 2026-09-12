@@ -117,8 +117,7 @@ function buildStageContext(projectId: string, stageId: string): string {
       状态: step.status,
       检查项: step.checklist.map((item) => ({
         内容: item.text,
-        已完成: item.done,
-        完成说明: item.response?.trim() || ''
+        已完成: item.done
       })),
       问题回答: step.questions.map((question) => ({
         问题: question.q,
@@ -230,9 +229,9 @@ export async function stepAssist(p: { projectId: string; stageId: string; stepId
       `当前阶段：${stage.name} —— 目标：${stage.objective}`,
       `当前 Step：${step.name}\n目标：${step.goal}\n说明：${step.description}`,
       `需要回答的问题：${step.questions.map((q) => q.q).join('；') || '（无）'}`,
-      `已有 Checklist：${step.checklist.map((c) => `${c.done ? '[x]' : '[ ]'} ${c.text}${c.response?.trim() ? `（完成说明：${c.response.trim()}）` : ''}`).join('；')}`,
+      `已有 Checklist：${step.checklist.map((c) => `${c.done ? '[x]' : '[ ]'} ${c.text}`).join('；')}`,
       `本阶段已有证据：${stageEvidences.map((e) => `${e.title}（${e.strength}）`).join('；') || '暂无'}`,
-      `用户已填写：${JSON.stringify(step.answers, null, 1)}`
+      `用户已填写：${JSON.stringify(step.questions.map((question) => ({ 问题: question.q, 回答: step.answers[question.id]?.trim() || '' })), null, 1)}`
     ].join('\n\n')
 
     const raw = await chat([
