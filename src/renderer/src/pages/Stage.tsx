@@ -92,9 +92,12 @@ export function StagePage() {
           <div className="text-[13px] text-ink-3 mt-1">第 {stage.order} / {project.workflowSnapshot.stages.length} 阶段</div>
         </div>
         {stage.status !== 'passed' && (
-          <Button variant="primary" size="lg" onClick={() => setDecisionOpen(true)} disabled={isLocked}>
-            <Gavel size={15} /> 阶段决策
-          </Button>
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            <Button variant="primary" size="lg" onClick={() => setDecisionOpen(true)} disabled={isLocked}>
+              <Gavel size={15} /> 阶段决策
+            </Button>
+            {isLocked && <span className="text-[12px] text-ink-3">当前阶段尚未解锁，完成上一阶段决策后可操作</span>}
+          </div>
         )}
       </div>
 
@@ -190,7 +193,7 @@ export function StagePage() {
                     <Link2 size={11} /> {linked.length > 0 ? `已关联 ${linked.length} 条证据：${linked.map((e) => e.title).join('、')}` : '尚无证据关联'}
                   </div>
                 </div>
-                <button className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-bad p-1 transition-opacity" onClick={async () => {
+                <button aria-label="删除 Claim" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
                   await window.api.claimDelete({ id: c.id })
                   await load()
                 }}><Trash2 size={13.5} /></button>
@@ -227,7 +230,7 @@ export function StagePage() {
                     {e.notes && <span className="text-ink-2">· {e.notes}</span>}
                   </div>
                 </div>
-                <button className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-bad p-1 transition-opacity" onClick={async () => {
+                <button aria-label="删除 Evidence" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
                   await window.api.evidenceDelete({ id: e.id })
                   await load()
                 }}><Trash2 size={13.5} /></button>

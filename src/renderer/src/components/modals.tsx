@@ -390,11 +390,11 @@ export function ClaimInlineAdd({ projectId, stageId, onAdded }: { projectId: str
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col sm:flex-row gap-2">
       <input type="text" value={statement} onChange={(e) => setStatement(e.target.value)}
-        placeholder="提出一个可被证据支持或证伪的假设，例如：小时工愿意持续记录每天工时"
+        className="min-w-0" placeholder="提出一个可被证据支持或证伪的假设，例如：小时工愿意持续记录每天工时"
         onKeyDown={(e) => { if (e.key === 'Enter') add() }} />
-      <Button variant="soft" loading={busy} onClick={add}>添加</Button>
+      <Button className="self-start sm:self-auto" variant="soft" loading={busy} onClick={add}>添加</Button>
     </div>
   )
 }

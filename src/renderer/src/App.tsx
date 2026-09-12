@@ -11,10 +11,10 @@ const StepPage = lazy(() => import('./pages/Step').then((m) => ({ default: m.Ste
 const PlaybookPage = lazy(() => import('./pages/Playbook').then((m) => ({ default: m.PlaybookPage })))
 const SettingsPage = lazy(() => import('./pages/Settings').then((m) => ({ default: m.SettingsPage })))
 
-function ToastHost() {
+export function ToastHost() {
   const { toasts, dismissToast } = useApp()
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] space-y-2 pointer-events-none">
+    <div aria-live="polite" aria-atomic="true" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] space-y-2 pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id} onClick={() => dismissToast(t.id)}
           className={`pointer-events-auto cursor-pointer anim-in flex items-center gap-2.5 rounded-xl px-4 py-3 shadow-lg text-[13.5px] font-medium max-w-md ${
