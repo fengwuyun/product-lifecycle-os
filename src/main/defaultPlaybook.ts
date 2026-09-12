@@ -1,5 +1,4 @@
 import type { Playbook, PlaybookStageDef } from '../shared/types'
-import { enrichChecklistDefinition } from '../shared/checklistResponses'
 
 // 默认 Playbook：8 个阶段，内容源自 PRD §6 / §8
 // id 采用稳定短码，便于项目快照引用
@@ -66,6 +65,7 @@ const stages: PlaybookStageDef[] = [
             { id: 'c123', text: '描述一个典型的使用场景' }
           ],
           questions: [
+            { id: 'q120', q: '用一句话描述这个产品机会：为谁、在什么场景、解决什么问题？' },
             { id: 'q121', q: '目标用户是谁？他们有什么共同特征？' },
             { id: 'q122', q: '描述一个具体场景：用户在什么时间、什么情境下遇到这个问题？' }
           ]
@@ -82,6 +82,7 @@ const stages: PlaybookStageDef[] = [
             { id: 'c133', text: '描述为什么现有方案不够好' }
           ],
           questions: [
+            { id: 'q130', q: '用户真正需要解决的核心问题是什么？' },
             { id: 'q131', q: '用户现在用什么方式解决这个问题？成本是什么？' },
             { id: 'q132', q: '为什么现在的方案不够好？痛点具体在哪里？' }
           ]
@@ -911,7 +912,7 @@ export function buildDefaultPlaybook(): Playbook {
       ...stage,
       steps: stage.steps.map((step) => ({
         ...step,
-        checklist: step.checklist.map(enrichChecklistDefinition)
+        checklist: step.checklist.map((item) => ({ ...item }))
       }))
     })),
     history: [{ version: 1, savedAt: now, note: '初始版本' }],

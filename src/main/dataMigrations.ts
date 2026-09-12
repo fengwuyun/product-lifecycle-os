@@ -1,34 +1,29 @@
-import type { AppData } from '../shared/types'
-import { enrichChecklistDefinition, enrichProjectChecklistItem } from '../shared/checklistResponses'
+import type { AppData, ProjectChecklistItem } from '../shared/types'
 
-export const DATA_VERSION = 2
+export const DATA_VERSION = 3
+
+type LegacyChecklistItem = ProjectChecklistItem & {
+  responseRequired?: boolean
+  responsePrompt?: string
+  response?: string
+}
 
 export function migrateData(input: AppData): { data: AppData; changed: boolean } {
   let changed = input.meta.version < DATA_VERSION
 
-  for (const playbook of input.playbooks) {
-    for (const stage of playbook.stages) {
-      for (const step of stage.steps) {
-        step.checklist = step.checklist.map((item) => {
-          const next = enrichChecklistDefinition(item)
-          if (next !== item) changed = true
-          return next
-        })
-      }
-    }
-  }
-
   for (const project of input.projects) {
     for (const stage of project.workflowSnapshot.stages) {
       for (const step of stage.steps) {
-        step.checklist = step.checklist.map((item) => {
-          const next = enrichProjectChecklistItem(item)
-          if (
-            next.responseRequired !== item.responseRequired ||
-            next.responsePrompt !== item.responsePrompt ||
-            next.response !== item.response
-          ) changed = true
-          return next
+        const checklist = step.checklist as LegacyChecklistItem[]
+        step.checklist = checklist.map((item) => {
+          const answerId = `legacy_question_${item.id}`
+          if (item.response?.trim() && !Object.hasOwn(step.answers, answerId)) {
+            step.questions.push({ id: answerId, q: item.responsePrompt || item.text })
+            step.answers[answerId] = item.response
+            changed = true
+          }
+          if ('responseRequired' in item || 'responsePrompt' in item || 'response' in item) changed = true
+          return { id: item.id, text: item.text, done: item.done }
         })
       }
     }

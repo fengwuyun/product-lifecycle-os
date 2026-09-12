@@ -25,7 +25,7 @@ export interface PlaybookStepDef {
   name: string
   goal: string
   description: string
-  checklist: { id: string; text: string; responseRequired?: boolean; responsePrompt?: string }[]
+  checklist: { id: string; text: string }[]
   questions: { id: string; q: string; hint?: string }[]
 }
 
@@ -64,9 +64,6 @@ export interface ProjectChecklistItem {
   id: string
   text: string
   done: boolean
-  responseRequired?: boolean
-  responsePrompt?: string
-  response?: string
 }
 export interface ProjectStep {
   id: string
