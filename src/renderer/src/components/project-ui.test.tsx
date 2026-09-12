@@ -190,12 +190,15 @@ test('Modal 在页面顶层提供语义、焦点循环、Escape 关闭并恢复�
   expect(document.activeElement).toBe(trigger)
 })
 
-test('ToastHost 使用礼貌且原子化的状态播报区', () => {
+test('ToastHost 使用礼貌且原子化的状态播报区，并且高于 Modal', () => {
   useApp.setState({ ...useApp.getState(), toasts: [{ id: 1, msg: '已保存', kind: 'ok' }] })
-  render(<ToastHost />)
+  render(<><ToastHost /><Modal open onClose={vi.fn()} title="层级测试"><input aria-label="层级输入" /></Modal></>)
   const host = screen.getByText('已保存').parentElement
   expect(host?.getAttribute('aria-live')).toBe('polite')
   expect(host?.getAttribute('aria-atomic')).toBe('true')
+  const toastLayer = Number(host?.className.match(/z-\[(\d+)\]/)?.[1])
+  const modalLayer = Number(screen.getByRole('dialog', { name: '层级测试' }).parentElement?.className.match(/z-\[(\d+)\]/)?.[1])
+  expect(toastLayer).toBeGreaterThan(modalLayer)
 })
 
 test('锁定阶段说明原因，并为 Claim 和 Evidence 删除控件提供可见标签', () => {
