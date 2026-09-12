@@ -56,7 +56,7 @@ export function PortfolioPage() {
       {/* 页头 */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[21px] font-bold tracking-tight">Portfolio</h1>
+          <h1 className="text-[21px] font-bold tracking-tight">项目组合</h1>
           <p className="text-[13px] text-ink-3 mt-0.5">多项目总览 —— 现在应该推进什么，一目了然</p>
         </div>
         <div className="flex items-center gap-1 bg-white border border-line rounded-[10px] p-1">
@@ -295,7 +295,7 @@ function RowActions({ project }: { project: Project }) {
             toast('项目已删除', 'ok')
           }}>确认删除</Button>
         </>}>
-        <div className="text-[13.5px] leading-relaxed">确定删除项目「{project.name}」？该项目的全部 Claim、Evidence、资料、决策记录都会一并删除，此操作不可恢复。</div>
+        <div className="text-[13.5px] leading-relaxed">确定删除项目「{project.name}」？该项目的全部假设（Claims）、证据（Evidence）、资料（Artifacts）、决策记录都会一并删除，此操作不可恢复。</div>
       </Modal>
     </div>
   )

@@ -71,7 +71,7 @@ export function StagePage() {
     <div className="p-7 max-w-[980px] mx-auto pb-16">
       {/* 面包屑 */}
       <div className="flex items-center gap-1.5 text-[12.5px] text-ink-3 mb-4">
-        <Link to="/" className="hover:text-primary">Portfolio</Link>
+        <Link to="/" className="hover:text-primary">项目组合</Link>
         <ChevronRight size={13} />
         <Link to={`/project/${project.id}`} className="hover:text-primary">{project.name}</Link>
         <ChevronRight size={13} />
@@ -137,8 +137,8 @@ export function StagePage() {
         </div>
       </Card>
 
-      {/* Steps 执行区 */}
-      <SectionTitleBar icon={<Layers size={15} />} title={`执行 Steps（${stepsDone}/${stage.steps.length}）`} desc="每个 Step 是一个具体的执行单元：读说明 → 做检查项 → 回答问题" />
+      {/* 执行步骤（Steps） */}
+      <SectionTitleBar icon={<Layers size={15} />} title={`执行步骤（Steps，${stepsDone}/${stage.steps.length}）`} desc="每个执行步骤（Steps）都是具体的执行单元：读说明 → 做检查项 → 回答问题" />
       <div className="space-y-2 mb-6">
         {stage.steps.map((step) => {
           const answered = Object.values(step.answers).filter((v) => v && v.trim()).length
@@ -177,10 +177,10 @@ export function StagePage() {
         </div>
       </Card>
 
-      {/* Claims */}
-      <SectionTitleBar icon={<CircleDot size={15} />} title={`Claims（${claims.length}）`} desc="本阶段提出、等待证据检验的假设" />
+      {/* 假设（Claims） */}
+      <SectionTitleBar icon={<CircleDot size={15} />} title={`假设（Claims，${claims.length}）`} desc="本阶段提出、等待证据（Evidence）检验的假设" />
       <Card className="p-4 mb-6">
-        {claims.length === 0 && <div className="text-[12.5px] text-ink-3 mb-3">还没有 Claim。写下你当前最想验证的假设，AI 审查时会逐条检查证据支持度。</div>}
+        {claims.length === 0 && <div className="text-[12.5px] text-ink-3 mb-3">还没有假设（Claims）。写下你当前最想验证的假设，AI 审查时会逐条检查证据（Evidence）支持度。</div>}
         <div className="space-y-2 mb-3">
           {claims.map((c) => {
             const linked = evidences.filter((e) => e.relatedClaimIds.includes(c.id))
@@ -193,7 +193,7 @@ export function StagePage() {
                     <Link2 size={11} /> {linked.length > 0 ? `已关联 ${linked.length} 条证据：${linked.map((e) => e.title).join('、')}` : '尚无证据关联'}
                   </div>
                 </div>
-                <button aria-label="删除 Claim" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
+                <button aria-label="删除假设（Claims）" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
                   await window.api.claimDelete({ id: c.id })
                   await load()
                 }}><Trash2 size={13.5} /></button>
@@ -204,13 +204,13 @@ export function StagePage() {
         <ClaimInlineAdd projectId={project.id} stageId={stage.id} onAdded={load} />
       </Card>
 
-      {/* Evidence */}
-      <SectionTitleBar icon={<Database size={15} />} title={`Evidence（${evidences.length}${stage.minEvidence > 0 ? ` / 至少 ${stage.minEvidence}` : ''}）`}
+      {/* 证据（Evidence） */}
+      <SectionTitleBar icon={<Database size={15} />} title={`证据（Evidence，${evidences.length}${stage.minEvidence > 0 ? ` / 至少 ${stage.minEvidence}` : ''}）`}
         desc="真实世界的证据。行为 > 表态；AI 会检查每条证据的成色" extra={
           <Button size="sm" variant="soft" onClick={() => setEvOpen(true)}><Plus size={14} /> 记录证据</Button>
         } />
       {evidences.length === 0 ? (
-        <Card className="p-4 mb-6"><div className="text-[12.5px] text-ink-3 text-center py-3">暂无证据 —— 去和真实用户聊聊，把发生的事实记下来</div></Card>
+        <Card className="p-4 mb-6"><div className="text-[12.5px] text-ink-3 text-center py-3">暂无证据（Evidence）—— 去和真实用户聊聊，把发生的事实记下来</div></Card>
       ) : (
         <div className="space-y-2 mb-6">
           {evidences.map((e) => (
@@ -226,11 +226,11 @@ export function StagePage() {
                   <div className="text-[11.5px] text-ink-3 mt-1.5 flex items-center gap-3 flex-wrap">
                     <span>{fmtDate(e.createdAt)}</span>
                     {e.sourceUrl && <a href={e.sourceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1 max-w-[280px] truncate"><Link2 size={11} />{e.sourceUrl}</a>}
-                    {e.relatedClaimIds.length > 0 && <span>支持 {e.relatedClaimIds.length} 个 Claim</span>}
+                    {e.relatedClaimIds.length > 0 && <span>支持 {e.relatedClaimIds.length} 个假设（Claims）</span>}
                     {e.notes && <span className="text-ink-2">· {e.notes}</span>}
                   </div>
                 </div>
-                <button aria-label="删除 Evidence" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
+                <button aria-label="删除证据（Evidence）" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
                   await window.api.evidenceDelete({ id: e.id })
                   await load()
                 }}><Trash2 size={13.5} /></button>
@@ -282,7 +282,7 @@ export function StagePage() {
         {/* 本阶段资料列表 */}
         {artifacts.length > 0 && (
           <Card className="p-4">
-            <div className="text-[12.5px] font-semibold text-ink-2 mb-2.5">本阶段资料（{artifacts.length}）</div>
+            <div className="text-[12.5px] font-semibold text-ink-2 mb-2.5">本阶段资料（Artifacts，{artifacts.length}）</div>
             <div className="flex flex-wrap gap-2">
               {artifacts.map((a) => (
                 <button key={a.id} onClick={() => setViewArtifact(a.id)}
@@ -298,7 +298,7 @@ export function StagePage() {
 
       {/* AI Review */}
       <SectionTitleBar icon={<ShieldCheck size={15} />} title="AI 审查"
-        desc="AI 通读本阶段目标、Todo、Claims、Evidence 与成果，输出 Ready / 风险 / 证据不足 / 矛盾——但不会替你决策" extra={
+        desc="AI 通读本阶段目标、Todo、假设（Claims）、证据（Evidence）与成果，输出 Ready / 风险 / 证据不足 / 矛盾——但不会替你决策" extra={
           <Button size="sm" variant="soft" loading={reviewing} onClick={runReview}><Sparkles size={14} /> {reviews.length ? '重新审查' : '运行 AI 审查'}</Button>
         } />
       {reviews.length === 0 ? (
@@ -398,7 +398,7 @@ function ReviewCard({ review }: { review: AIReview }) {
             <div className="text-[11.5px] font-bold text-bad mb-1.5">证据不足</div>
             {review.gaps.map((g, i) => (
               <div key={i} className="bg-bad-soft/50 rounded-[8px] px-3 py-2 mb-1.5">
-                <div className="font-medium">Claim：{g.claim}</div>
+                <div className="font-medium">假设（Claims）：{g.claim}</div>
                 <div className="text-ink-2 text-[12.5px]">现有：{g.existing} · 缺失：{g.missing}</div>
               </div>
             ))}

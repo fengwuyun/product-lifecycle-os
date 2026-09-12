@@ -109,7 +109,7 @@ export function StepPage() {
       })
       await window.api.stepComplete({ projectId: project.id, stageId: stage.id, stepId: stepId!, completed: willComplete })
       await load()
-      toast(willComplete ? 'Step 已完成' : '已重新打开', 'ok')
+      toast(willComplete ? '执行步骤（Steps）已完成' : '已重新打开', 'ok')
       if (willComplete) {
         const next = stage.steps[stepIndex + 1]
         if (next) navigate(`/project/${project.id}/stage/${stage.id}/step/${next.id}`)
@@ -136,7 +136,7 @@ export function StepPage() {
     <div className="p-7 max-w-[860px] mx-auto pb-16">
       {/* 面包屑 */}
       <div className="flex items-center gap-1.5 text-[12.5px] text-ink-3 mb-4 flex-wrap">
-        <Link to="/" className="hover:text-primary">Portfolio</Link>
+        <Link to="/" className="hover:text-primary">项目组合</Link>
         <ChevronRight size={13} />
         <Link to={`/project/${project.id}`} className="hover:text-primary">{project.name}</Link>
         <ChevronRight size={13} />
@@ -150,7 +150,7 @@ export function StepPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-[21px] font-bold tracking-tight">
-              <span className="text-ink-3 mr-2">Step {stepIndex + 1}</span>{draft.name}
+              <span className="text-ink-3 mr-2">执行步骤（Steps）{stepIndex + 1}</span>{draft.name}
             </h1>
             {isDone && <Badge tone="ok">已完成</Badge>}
           </div>
@@ -159,7 +159,7 @@ export function StepPage() {
           </div>
         </div>
         <Button variant={isDone ? 'default' : 'primary'} size="lg" onClick={complete}>
-          <CheckCircle2 size={15} /> {isDone ? '重新打开' : '完成 Step'}
+          <CheckCircle2 size={15} /> {isDone ? '重新打开' : '完成执行步骤（Steps）'}
         </Button>
       </div>
 
@@ -227,7 +227,7 @@ export function StepPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="font-semibold text-[14px] flex items-center gap-1.5"><Sparkles size={14} className="text-primary" /> AI 执行辅助</div>
-            <div className="text-[12px] text-ink-3 mt-0.5">卡住了？让 AI 解释这个 Step 为什么重要、给出回答思路（AI 不会替你编造事实）</div>
+            <div className="text-[12px] text-ink-3 mt-0.5">卡住了？让 AI 解释这个执行步骤（Steps）为什么重要、给出回答思路（AI 不会替你编造事实）</div>
           </div>
           <Button variant="soft" loading={assistBusy} onClick={runAssist}><Sparkles size={14} /> 获取建议</Button>
         </div>
@@ -236,15 +236,15 @@ export function StepPage() {
         )}
       </Card>
 
-      {/* Evidence / Artifact 快捷入口 */}
+      {/* 证据（Evidence）/ 资料（Artifacts）快捷入口 */}
       <div className="grid md:grid-cols-2 gap-3 mb-6">
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="font-semibold text-[13.5px]">本阶段 Evidence（{evidences.length}）</div>
+            <div className="font-semibold text-[13.5px]">本阶段证据（Evidence，{evidences.length}）</div>
             <Button size="sm" variant="ghost" onClick={() => setEvOpen(true)}><Plus size={13} /> 记录</Button>
           </div>
           {evidences.length === 0 ? (
-            <div className="text-[12px] text-ink-3">这一步发现的任何真实事实，都值得记录为证据</div>
+            <div className="text-[12px] text-ink-3">暂无本阶段证据（Evidence）。这一步发现的任何真实事实，都值得记录下来。</div>
           ) : (
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
               {evidences.map((e) => (
@@ -258,11 +258,11 @@ export function StepPage() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="font-semibold text-[13.5px]">本阶段 Artifact（{artifacts.length}）</div>
+            <div className="font-semibold text-[13.5px]">本阶段资料（Artifacts，{artifacts.length}）</div>
             <Button size="sm" variant="ghost" onClick={() => setArtOpen(true)}><Plus size={13} /> 添加</Button>
           </div>
           {artifacts.length === 0 ? (
-            <div className="text-[12px] text-ink-3">访谈记录、竞品截图、数据表格……作为资料保存并自动解析</div>
+            <div className="text-[12px] text-ink-3">暂无本阶段资料（Artifacts）。访谈记录、竞品截图、数据表格都可保存并自动解析。</div>
           ) : (
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
               {artifacts.map((a) => (

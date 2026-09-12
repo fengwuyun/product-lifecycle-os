@@ -8,7 +8,10 @@ import { CreateProjectModal, ClaimInlineAdd } from './modals'
 import { Sidebar } from './Sidebar'
 import { Button, Modal } from './ui'
 import { getMenuPosition, PortfolioPage } from '../pages/Portfolio'
+import { PipelinePage } from '../pages/Pipeline'
+import { SettingsPage } from '../pages/Settings'
 import { StagePage } from '../pages/Stage'
+import { StepPage } from '../pages/Step'
 import { useApp } from '../store/app'
 import { useSidebarWorkspace } from '../store/sidebarWorkspace'
 import { reconcileChecklistItems } from '../pages/Playbook'
@@ -144,6 +147,69 @@ test('Playbook 检查项删除和重排时保留稳定 ID', () => {
   expect(next.map((item) => item.text)).toEqual(['第三项', '第二项'])
 })
 
+test('主要页面标题使用中文优先术语', () => {
+  const portfolio = render(<MemoryRouter><PortfolioPage /></MemoryRouter>)
+  expect(screen.getByRole('heading', { name: '项目组合' })).toBeTruthy()
+  portfolio.unmount()
+
+  window.api = { getDataPath: vi.fn().mockResolvedValue(''), getVersions: vi.fn().mockResolvedValue({ app: '', electron: '', node: '' }) } as unknown as typeof window.api
+  render(<MemoryRouter><SettingsPage /></MemoryRouter>)
+  expect(screen.getByRole('heading', { name: '设置' })).toBeTruthy()
+})
+
+test('执行步骤页标题使用中文优先术语', async () => {
+  const stage = {
+    id: 'stage-active', name: '验证阶段', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [],
+    todos: [], steps: [{ id: 'step-one', name: '定义问题', goal: '', description: '', checklist: [], questions: [], answers: {}, status: 'todo' }],
+    deliverables: [], exitCriteria: [], minEvidence: 0, status: 'active'
+  } as Project['workflowSnapshot']['stages'][number]
+  const stepProject = { ...project, currentStageId: stage.id, workflowSnapshot: { ...project.workflowSnapshot, stages: [stage] } }
+  useApp.setState({ data: { ...emptyData, projects: [stepProject] } })
+  render(<MemoryRouter initialEntries={[`/project/${project.id}/stage/${stage.id}/step/step-one`]}>
+    <Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes>
+  </MemoryRouter>)
+
+  expect(await screen.findByRole('heading', { name: '执行步骤（Steps）1 定义问题' })).toBeTruthy()
+})
+
+test('导出弹窗分别传递直接导出和 AI 总结导出选项', async () => {
+  const user = userEvent.setup()
+  const reportExport = vi.fn().mockResolvedValue({ canceled: false, path: 'C:/reports/test.html' })
+  useApp.setState({ data: {
+    ...emptyData,
+    settings: { ai: { baseUrl: 'https://api.example.com/v1', apiKey: 'key', model: 'model' } },
+    projects: [project]
+  } })
+  window.api = { reportExport } as unknown as typeof window.api
+  render(<MemoryRouter initialEntries={[`/project/${project.id}`]}>
+    <Routes><Route path="/project/:projectId" element={<PipelinePage />} /></Routes>
+  </MemoryRouter>)
+
+  await user.click(screen.getByRole('button', { name: '导出报告' }))
+  await user.click(screen.getByRole('button', { name: '直接导出' }))
+  await waitFor(() => expect(reportExport).toHaveBeenLastCalledWith({ projectId: project.id, withAiSummary: false }))
+
+  await user.click(screen.getByRole('button', { name: '导出报告' }))
+  await user.click(screen.getByRole('button', { name: 'AI 总结并导出' }))
+  await waitFor(() => expect(reportExport).toHaveBeenLastCalledWith({ projectId: project.id, withAiSummary: true }))
+})
+
+test('未完成设置时仅禁用 AI 总结导出', async () => {
+  const user = userEvent.setup()
+  useApp.setState({ data: { ...emptyData, projects: [project] } })
+  const reportExport = vi.fn().mockResolvedValue({ canceled: false, path: 'C:/reports/test.html' })
+  window.api = { reportExport } as unknown as typeof window.api
+  render(<MemoryRouter initialEntries={[`/project/${project.id}`]}>
+    <Routes><Route path="/project/:projectId" element={<PipelinePage />} /></Routes>
+  </MemoryRouter>)
+
+  await user.click(screen.getByRole('button', { name: '导出报告' }))
+  expect((screen.getByRole('button', { name: '直接导出' }) as HTMLButtonElement).disabled).toBe(false)
+  expect((screen.getByRole('button', { name: 'AI 总结并导出' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.click(screen.getByRole('button', { name: '直接导出' }))
+  await waitFor(() => expect(reportExport).toHaveBeenCalledWith({ projectId: project.id, withAiSummary: false }))
+})
+
 test('共享 Button 保持单行并且 Claims 新增行在窄屏可堆叠', () => {
   const { container } = render(<><Button>添加</Button><ClaimInlineAdd projectId="prj-new" stageId="stage-new" onAdded={vi.fn()} /></>)
   const button = screen.getAllByRole('button', { name: '添加' })[0]
@@ -217,8 +283,11 @@ test('锁定阶段说明原因，并为 Claim 和 Evidence 删除控件提供可
     <Routes><Route path="/project/:projectId/stage/:stageId" element={<StagePage />} /></Routes>
   </MemoryRouter>)
   expect(screen.getByText('当前阶段尚未解锁，完成上一阶段决策后可操作')).toBeTruthy()
-  const claimDelete = screen.getByRole('button', { name: '删除 Claim' })
-  const evidenceDelete = screen.getByRole('button', { name: '删除 Evidence' })
+  expect(screen.getByText('执行步骤（Steps，0/0）')).toBeTruthy()
+  expect(screen.getByText('假设（Claims，1）')).toBeTruthy()
+  expect(screen.getByText('证据（Evidence，1）')).toBeTruthy()
+  const claimDelete = screen.getByRole('button', { name: '删除假设（Claims）' })
+  const evidenceDelete = screen.getByRole('button', { name: '删除证据（Evidence）' })
   expect(claimDelete.className).toContain('opacity-50')
   expect(claimDelete.className).toContain('hover:text-bad')
   expect(evidenceDelete.className).toContain('opacity-50')

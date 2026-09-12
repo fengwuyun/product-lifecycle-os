@@ -46,7 +46,7 @@ export function SettingsPage() {
     <div className="p-7 max-w-[760px] mx-auto pb-16">
       <div className="flex items-center gap-2.5 mb-1.5">
         <SettingsIcon size={20} className="text-primary" />
-        <h1 className="text-[21px] font-bold tracking-tight">Settings</h1>
+        <h1 className="text-[21px] font-bold tracking-tight">设置</h1>
       </div>
       <p className="text-[13px] text-ink-3 mb-6">AI 服务与本地存储配置。所有数据仅保存在你自己的电脑上。</p>
 
@@ -58,7 +58,7 @@ export function SettingsPage() {
           <Badge tone="gray">OpenAI 兼容接口</Badge>
         </div>
         <div className="text-[12.5px] text-ink-3 mb-4 leading-relaxed">
-          配置任意 OpenAI 兼容的 API（OpenAI / DeepSeek / Moonshot / GLM / 本地 Ollama 等）。AI 用于阶段审查、Step 辅助与项目总结；
+          配置任意 OpenAI 兼容的 API（OpenAI / DeepSeek / Moonshot / GLM / 本地 Ollama 等）。AI 用于阶段审查、执行步骤（Steps）辅助与项目总结；
           AI 不会替你做阶段决策，也不会编造证据（PRD 第 12 节约束已内置在提示词中）。
         </div>
         <Field label="API Base URL" hint="以 /v1 结尾，例如 https://api.deepseek.com/v1">
@@ -88,7 +88,7 @@ export function SettingsPage() {
           <div className="font-bold text-[15px]">本地存储</div>
         </div>
         <div className="text-[12.5px] text-ink-3 mb-4 leading-relaxed">
-          全部数据（项目、证据、资料正文、决策）以 JSON 形式保存在本机，不上传任何服务器。资料文件已复制进数据目录，移动原文件不影响使用。
+          全部数据（项目、证据（Evidence）、资料（Artifacts）正文、决策）以 JSON 形式保存在本机，不上传任何服务器。资料（Artifacts）文件已复制进数据目录，移动原文件不影响使用。
         </div>
         <div className="bg-[#faf9f6] border border-line rounded-[10px] px-4 py-3 text-[12.5px] font-mono text-ink-2 break-all mb-3.5">{dataPath}</div>
         <div className="flex items-center gap-2.5">
@@ -106,7 +106,7 @@ export function SettingsPage() {
           <div className="font-bold text-[15px]">AI 审查的边界（内置约束）</div>
         </div>
         <ul className="text-[13px] text-ink-2 space-y-1.5 leading-relaxed list-none">
-          <li>· AI 禁止自行创造用户数据、禁止制造 Evidence</li>
+          <li>· AI 禁止自行创造用户数据、禁止制造证据（Evidence）</li>
           <li>· 禁止把行业常识当成项目证据；没有依据时必须标记「未验证」</li>
           <li>· 禁止替你决定「继续 / 暂停 / 放弃」——最终决策权永远在你手里</li>
         </ul>
@@ -132,7 +132,7 @@ export function SettingsPage() {
           <Card className="relative p-6 w-[420px] anim-in">
             <div className="font-bold text-[16px] mb-2">清空全部数据？</div>
             <div className="text-[13px] text-ink-2 leading-relaxed mb-5">
-              所有项目、证据、资料、决策记录都将被删除并恢复为初始状态。此操作不可恢复（建议先导出项目报告备份）。
+              所有项目、证据（Evidence）、资料（Artifacts）、决策记录都将被删除并恢复为初始状态。此操作不可恢复（建议先导出项目报告备份）。
             </div>
             <div className="flex justify-end gap-2">
               <Button onClick={() => setResetOpen(false)}>取消</Button>
