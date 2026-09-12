@@ -8,6 +8,7 @@ import {
 import { useApp, stageGate, fmtDate } from '../store/app'
 import { Button, Card, Badge, StrengthBadge, EmptyState, Modal } from '../components/ui'
 import { EvidenceModal, ArtifactModal, DeliverableModal, DecisionModal, ClaimInlineAdd, ArtifactViewer } from '../components/modals'
+import { StageProgressSummary } from '../components/StageProgressSummary'
 import type { ProjectStage, Project, AIReview } from '@shared/types'
 
 export function StagePage() {
@@ -111,6 +112,8 @@ export function StagePage() {
           </div>
         </div>
       </Card>
+
+      <StageProgressSummary project={project} stage={stage} evidences={data.evidences} />
 
       {/* 介绍 / 目标 / 方法论 */}
       <Card className="p-5 mb-4">
