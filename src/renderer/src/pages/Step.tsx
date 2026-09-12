@@ -54,9 +54,9 @@ export function StepPage() {
 
   if (!data || !draft) return <div className="p-10 text-center text-ink-3 text-[13px]">加载中…</div>
   const project = data.projects.find((p) => p.id === projectId)
-  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回</Button>} />
+  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回项目组合</Button>} />
   const stage = project.workflowSnapshot.stages.find((s) => s.id === stageId)
-  if (!stage) return <EmptyState icon={<span>?</span>} title="阶段不存在" action={<Button onClick={() => navigate(`/project/${project.id}`)}>返回</Button>} />
+  if (!stage) return <EmptyState icon={<span>?</span>} title="阶段不存在" action={<Button onClick={() => navigate(`/project/${project.id}`)}>返回项目流程</Button>} />
 
   const stepIndex = stage.steps.findIndex((s) => s.id === stepId)
   const claims = data.claims.filter((c) => c.projectId === project.id && c.stageId === stage.id)

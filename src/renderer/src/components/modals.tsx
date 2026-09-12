@@ -125,7 +125,7 @@ export function EvidenceModal({ open, onClose, project, stage, claims, onAdded }
         <input type="text" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://…" />
       </Field>
       {claims.length > 0 && (
-        <Field label="关联假设（Claims）" hint="此证据支持哪些假设">
+        <Field label="关联假设（Claims）" hint="此证据（Evidence）支持哪些假设（Claims）">
           <div className="space-y-1.5">
             {claims.map((c) => (
               <label key={c.id} className="flex items-start gap-2.5 text-[13px] bg-[#faf9f6] border border-line rounded-[9px] px-3 py-2 cursor-pointer hover:border-line-2">
@@ -216,7 +216,7 @@ export function ArtifactModal({ open, onClose, project, stage, onAdded }: {
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：竞品分析报告" />
       </Field>
       <Field label="备注" hint="可选">
-        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="这份资料说明了什么？" />
+        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="这份资料（Artifacts）说明了什么？" />
       </Field>
     </Modal>
   )
@@ -267,7 +267,7 @@ export function DeliverableModal({ open, onClose, project, stage, deliverableId,
       </Field>
       <Field label="关联资料（Artifacts）" hint="把已有资料（Artifacts）作为成果附件">
         {stageArtifacts.length === 0 ? (
-          <div className="text-[12.5px] text-ink-3">本阶段还没有资料，可先在「资料」区添加</div>
+          <div className="text-[12.5px] text-ink-3">本阶段还没有资料（Artifacts），可先在「资料（Artifacts）」区添加</div>
         ) : (
           <div className="space-y-1.5">
             {stageArtifacts.map((a) => (
@@ -392,7 +392,7 @@ export function ClaimInlineAdd({ projectId, stageId, onAdded }: { projectId: str
   return (
     <div className="flex flex-col sm:flex-row gap-2">
       <input type="text" value={statement} onChange={(e) => setStatement(e.target.value)}
-        className="min-w-0" placeholder="提出一个可被证据支持或证伪的假设，例如：小时工愿意持续记录每天工时"
+        className="min-w-0" placeholder="提出一个可被证据（Evidence）支持或证伪的假设（Claims），例如：小时工愿意持续记录每天工时"
         onKeyDown={(e) => { if (e.key === 'Enter') add() }} />
       <Button className="self-start sm:self-auto" variant="soft" loading={busy} onClick={add}>添加</Button>
     </div>

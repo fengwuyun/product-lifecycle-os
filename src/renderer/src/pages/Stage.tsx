@@ -25,9 +25,9 @@ export function StagePage() {
 
   if (!data) return null
   const project = data.projects.find((p) => p.id === projectId)
-  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回</Button>} />
+  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回项目组合</Button>} />
   const stage = project.workflowSnapshot.stages.find((s) => s.id === stageId)
-  if (!stage) return <EmptyState icon={<span>?</span>} title="阶段不存在" action={<Button onClick={() => navigate(`/project/${project.id}`)}>返回 Pipeline</Button>} />
+  if (!stage) return <EmptyState icon={<span>?</span>} title="阶段不存在" action={<Button onClick={() => navigate(`/project/${project.id}`)}>返回项目流程</Button>} />
 
   const gate = stageGate(project, stage, data.evidences)
   const claims = data.claims.filter((c) => c.projectId === project.id && c.stageId === stage.id)
@@ -178,9 +178,9 @@ export function StagePage() {
       </Card>
 
       {/* 假设（Claims） */}
-      <SectionTitleBar icon={<CircleDot size={15} />} title={`假设（Claims，${claims.length}）`} desc="本阶段提出、等待证据（Evidence）检验的假设" />
+      <SectionTitleBar icon={<CircleDot size={15} />} title={`假设（Claims，${claims.length}）`} desc="本阶段提出、等待证据（Evidence）检验的假设（Claims）" />
       <Card className="p-4 mb-6">
-        {claims.length === 0 && <div className="text-[12.5px] text-ink-3 mb-3">还没有假设（Claims）。写下你当前最想验证的假设，AI 审查时会逐条检查证据（Evidence）支持度。</div>}
+        {claims.length === 0 && <div className="text-[12.5px] text-ink-3 mb-3">还没有假设（Claims）。写下你当前最想验证的假设（Claims），AI 审查时会逐条检查证据（Evidence）支持度。</div>}
         <div className="space-y-2 mb-3">
           {claims.map((c) => {
             const linked = evidences.filter((e) => e.relatedClaimIds.includes(c.id))
@@ -190,7 +190,7 @@ export function StagePage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] leading-relaxed">{c.statement}</div>
                   <div className="text-[11.5px] text-ink-3 mt-1 flex items-center gap-1.5 flex-wrap">
-                    <Link2 size={11} /> {linked.length > 0 ? `已关联 ${linked.length} 条证据：${linked.map((e) => e.title).join('、')}` : '尚无证据关联'}
+                    <Link2 size={11} /> {linked.length > 0 ? `已关联 ${linked.length} 条证据（Evidence）：${linked.map((e) => e.title).join('、')}` : '尚无证据（Evidence）关联'}
                   </div>
                 </div>
                 <button aria-label="删除假设（Claims）" className="opacity-50 group-hover:opacity-100 focus:opacity-100 text-ink-3 hover:text-bad focus:text-bad p-1 transition-all" onClick={async () => {
@@ -206,7 +206,7 @@ export function StagePage() {
 
       {/* 证据（Evidence） */}
       <SectionTitleBar icon={<Database size={15} />} title={`证据（Evidence，${evidences.length}${stage.minEvidence > 0 ? ` / 至少 ${stage.minEvidence}` : ''}）`}
-        desc="真实世界的证据。行为 > 表态；AI 会检查每条证据的成色" extra={
+        desc="证据（Evidence）来自真实世界。行为 > 表态；AI 会检查证据（Evidence）的成色" extra={
           <Button size="sm" variant="soft" onClick={() => setEvOpen(true)}><Plus size={14} /> 记录证据</Button>
         } />
       {evidences.length === 0 ? (
@@ -265,7 +265,7 @@ export function StagePage() {
             )}
             {d.artifactIds.length > 0 && (
               <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-[11.5px] text-ink-3">关联资料：</span>
+                <span className="text-[11.5px] text-ink-3">关联资料（Artifacts）：</span>
                 {d.artifactIds.map((aid) => {
                   const a = artifacts.find((x) => x.id === aid)
                   return a ? (
@@ -302,7 +302,7 @@ export function StagePage() {
           <Button size="sm" variant="soft" loading={reviewing} onClick={runReview}><Sparkles size={14} /> {reviews.length ? '重新审查' : '运行 AI 审查'}</Button>
         } />
       {reviews.length === 0 ? (
-        <Card className="p-6"><div className="text-[12.5px] text-ink-3 text-center">尚未审查。建议在提交成果后运行，AI 会找出未验证假设与证据缺口。</div></Card>
+        <Card className="p-6"><div className="text-[12.5px] text-ink-3 text-center">尚未审查。建议在提交成果后运行，AI 会找出未验证的假设（Claims）与证据（Evidence）缺口。</div></Card>
       ) : (
         <div className="space-y-3 mb-6">
           {reviews.map((r) => <ReviewCard key={r.id} review={r} />)}
@@ -384,7 +384,7 @@ function ReviewCard({ review }: { review: AIReview }) {
         )}
         {review.unverified.length > 0 && (
           <div>
-            <div className="text-[11.5px] font-bold text-warn mb-1.5">⚠ 未验证假设</div>
+            <div className="text-[11.5px] font-bold text-warn mb-1.5">⚠ 未验证假设（Claims）</div>
             {review.unverified.map((v, i) => (
               <div key={i} className="py-0.5">
                 <div>⚠ {v.text}</div>
@@ -395,7 +395,7 @@ function ReviewCard({ review }: { review: AIReview }) {
         )}
         {review.gaps.length > 0 && (
           <div>
-            <div className="text-[11.5px] font-bold text-bad mb-1.5">证据不足</div>
+            <div className="text-[11.5px] font-bold text-bad mb-1.5">证据（Evidence）不足</div>
             {review.gaps.map((g, i) => (
               <div key={i} className="bg-bad-soft/50 rounded-[8px] px-3 py-2 mb-1.5">
                 <div className="font-medium">假设（Claims）：{g.claim}</div>

@@ -59,7 +59,7 @@ export function SettingsPage() {
         </div>
         <div className="text-[12.5px] text-ink-3 mb-4 leading-relaxed">
           配置任意 OpenAI 兼容的 API（OpenAI / DeepSeek / Moonshot / GLM / 本地 Ollama 等）。AI 用于阶段审查、执行步骤（Steps）辅助与项目总结；
-          AI 不会替你做阶段决策，也不会编造证据（PRD 第 12 节约束已内置在提示词中）。
+          AI 不会替你做阶段决策，也不会编造证据（Evidence）；这一约束已写入提示词（PRD 第 12 节）。
         </div>
         <Field label="API Base URL" hint="以 /v1 结尾，例如 https://api.deepseek.com/v1">
           <input type="text" value={ai.baseUrl} onChange={(e) => setAi({ ...ai, baseUrl: e.target.value })} placeholder="https://api.openai.com/v1" />
@@ -107,7 +107,7 @@ export function SettingsPage() {
         </div>
         <ul className="text-[13px] text-ink-2 space-y-1.5 leading-relaxed list-none">
           <li>· AI 禁止自行创造用户数据、禁止制造证据（Evidence）</li>
-          <li>· 禁止把行业常识当成项目证据；没有依据时必须标记「未验证」</li>
+          <li>· 禁止把行业常识当成项目证据（Evidence）；没有依据时必须标记「未验证」</li>
           <li>· 禁止替你决定「继续 / 暂停 / 放弃」——最终决策权永远在你手里</li>
         </ul>
       </Card>

@@ -22,3 +22,9 @@
 ## 自审与疑虑
 
 导出选项与 IPC 布尔参数对应明确，配置判定同时兼容缺失和空白字段。测试输出包含 Vite CJS API 弃用提示和 React Router v7 future flag 提示，均未导致失败；Git 另提示工作区 LF 将转换为 CRLF，`git diff --check` 未发现空白错误。
+
+## Fix Round 1
+
+系统复核 brief 指定的页面与弹窗文案后，补齐成果弹窗无资料提示、阶段证据区说明、阶段审查空状态、设置页 AI 说明中的 canonical 双语术语；同步补齐假设空状态、证据关联提示、相关输入提示和缺失项目/阶段时的返回文案。测试新增上述阶段说明与空状态、设置说明、证据/资料/成果弹窗文案断言。
+
+验证使用 bundled Node 启动本地 Vitest，`src/renderer/src/components/project-ui.test.tsx` 的 18 项测试通过；本地 TypeScript `tsc --noEmit -p tsconfig.json` 退出码为 0；`git diff --check` 通过。Vitest 仍显示 Vite CJS 弃用和 React Router future flag 提示。

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { ToastHost } from '../App'
-import { CreateProjectModal, ClaimInlineAdd } from './modals'
+import { ArtifactModal, CreateProjectModal, ClaimInlineAdd, DeliverableModal, EvidenceModal } from './modals'
 import { Sidebar } from './Sidebar'
 import { Button, Modal } from './ui'
 import { getMenuPosition, PortfolioPage } from '../pages/Portfolio'
@@ -155,6 +155,7 @@ test('主要页面标题使用中文优先术语', () => {
   window.api = { getDataPath: vi.fn().mockResolvedValue(''), getVersions: vi.fn().mockResolvedValue({ app: '', electron: '', node: '' }) } as unknown as typeof window.api
   render(<MemoryRouter><SettingsPage /></MemoryRouter>)
   expect(screen.getByRole('heading', { name: '设置' })).toBeTruthy()
+  expect(screen.getByText(/不会编造证据（Evidence）；这一约束已写入提示词/)).toBeTruthy()
 })
 
 test('执行步骤页标题使用中文优先术语', async () => {
@@ -170,6 +171,29 @@ test('执行步骤页标题使用中文优先术语', async () => {
   </MemoryRouter>)
 
   expect(await screen.findByRole('heading', { name: '执行步骤（Steps）1 定义问题' })).toBeTruthy()
+  expect(screen.getByText('暂无本阶段证据（Evidence）。这一步发现的任何真实事实，都值得记录下来。')).toBeTruthy()
+  expect(screen.getByText('暂无本阶段资料（Artifacts）。访谈记录、竞品截图、数据表格都可保存并自动解析。')).toBeTruthy()
+})
+
+test('证据与资料弹窗说明、成果弹窗空状态使用中文优先术语', () => {
+  const stage = {
+    id: 'stage-copy', name: '验证阶段', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [],
+    todos: [], steps: [], deliverables: [{ id: 'deliverable-copy', name: '阶段成果', description: '', required: true, artifactIds: [] }],
+    exitCriteria: [], minEvidence: 0, status: 'active'
+  } as Project['workflowSnapshot']['stages'][number]
+  const claim = { id: 'claim-copy', projectId: project.id, stageId: stage.id, statement: '用户愿意付费', createdAt: '' }
+
+  const evidenceModal = render(<MemoryRouter><EvidenceModal open onClose={vi.fn()} project={project} stage={stage} claims={[claim]} onAdded={vi.fn()} /></MemoryRouter>)
+  expect(screen.getByText('此证据（Evidence）支持哪些假设（Claims）')).toBeTruthy()
+  evidenceModal.unmount()
+
+  const artifactModal = render(<MemoryRouter><ArtifactModal open onClose={vi.fn()} project={project} stage={stage} onAdded={vi.fn()} /></MemoryRouter>)
+  expect(screen.getByRole('dialog', { name: '添加资料（Artifacts）' })).toBeTruthy()
+  expect(screen.getByPlaceholderText('这份资料（Artifacts）说明了什么？')).toBeTruthy()
+  artifactModal.unmount()
+
+  render(<MemoryRouter><DeliverableModal open onClose={vi.fn()} project={project} stage={stage} deliverableId="deliverable-copy" artifacts={[]} onSaved={vi.fn()} /></MemoryRouter>)
+  expect(screen.getByText('本阶段还没有资料（Artifacts），可先在「资料（Artifacts）」区添加')).toBeTruthy()
 })
 
 test('导出弹窗分别传递直接导出和 AI 总结导出选项', async () => {
@@ -216,7 +240,7 @@ test('共享 Button 保持单行并且 Claims 新增行在窄屏可堆叠', () =
   expect(button.className).toContain('whitespace-nowrap')
   expect(button.className).toContain('shrink-0')
   expect(button.className).toContain('leading-none')
-  const input = screen.getByPlaceholderText(/提出一个可被证据支持或证伪的假设/)
+  const input = screen.getByPlaceholderText('提出一个可被证据（Evidence）支持或证伪的假设（Claims），例如：小时工愿意持续记录每天工时')
   expect(input.className).toContain('min-w-0')
   expect(input.parentElement?.className).toContain('flex-col')
   expect(input.parentElement?.className).toContain('sm:flex-row')
@@ -267,7 +291,7 @@ test('ToastHost 使用礼貌且原子化的状态播报区，并且高于 Modal'
   expect(toastLayer).toBeGreaterThan(modalLayer)
 })
 
-test('锁定阶段说明原因，并为 Claim 和 Evidence 删除控件提供可见标签', () => {
+test('阶段说明、空状态和删除控件使用中文优先的假设与证据术语', () => {
   const stage = {
     id: 'stage-locked', name: '锁定阶段', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [],
     todos: [], steps: [], deliverables: [], exitCriteria: [], minEvidence: 0, status: 'locked'
@@ -286,10 +310,29 @@ test('锁定阶段说明原因，并为 Claim 和 Evidence 删除控件提供可
   expect(screen.getByText('执行步骤（Steps，0/0）')).toBeTruthy()
   expect(screen.getByText('假设（Claims，1）')).toBeTruthy()
   expect(screen.getByText('证据（Evidence，1）')).toBeTruthy()
+  expect(screen.getByText('本阶段提出、等待证据（Evidence）检验的假设（Claims）')).toBeTruthy()
+  expect(screen.getByText('证据（Evidence）来自真实世界。行为 > 表态；AI 会检查证据（Evidence）的成色')).toBeTruthy()
+  expect(screen.getByText('尚未审查。建议在提交成果后运行，AI 会找出未验证的假设（Claims）与证据（Evidence）缺口。')).toBeTruthy()
+  expect(screen.getByText('尚无证据（Evidence）关联')).toBeTruthy()
   const claimDelete = screen.getByRole('button', { name: '删除假设（Claims）' })
   const evidenceDelete = screen.getByRole('button', { name: '删除证据（Evidence）' })
   expect(claimDelete.className).toContain('opacity-50')
   expect(claimDelete.className).toContain('hover:text-bad')
   expect(evidenceDelete.className).toContain('opacity-50')
   expect(evidenceDelete.className).toContain('focus:text-bad')
+})
+
+test('阶段没有假设或证据时空状态保留中文优先术语', () => {
+  const stage = {
+    id: 'stage-empty', name: '待验证阶段', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [],
+    todos: [], steps: [], deliverables: [], exitCriteria: [], minEvidence: 0, status: 'active'
+  } as Project['workflowSnapshot']['stages'][number]
+  const emptyProject = { ...project, currentStageId: stage.id, workflowSnapshot: { ...project.workflowSnapshot, stages: [stage] } }
+  useApp.setState({ data: { ...emptyData, projects: [emptyProject] } })
+  render(<MemoryRouter initialEntries={[`/project/${project.id}/stage/${stage.id}`]}>
+    <Routes><Route path="/project/:projectId/stage/:stageId" element={<StagePage />} /></Routes>
+  </MemoryRouter>)
+
+  expect(screen.getByText('还没有假设（Claims）。写下你当前最想验证的假设（Claims），AI 审查时会逐条检查证据（Evidence）支持度。')).toBeTruthy()
+  expect(screen.getByText('暂无证据（Evidence）—— 去和真实用户聊聊，把发生的事实记下来')).toBeTruthy()
 })
