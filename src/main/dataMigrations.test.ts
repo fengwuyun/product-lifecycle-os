@@ -25,6 +25,18 @@ function migratedStep(data: AppData) {
   return data.projects[0].workflowSnapshot.stages[0].steps[0]
 }
 
+function legacyPlaybookData(version: number): AppData {
+  const data = legacyData(version, [])
+  data.playbooks = [{
+    id: 'pb', name: '', version: 1, description: '', history: [], createdAt: '', updatedAt: '', stages: [{
+      id: 'stage', name: '', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [],
+      steps: [{ id: 'step', name: '', goal: '', description: '', checklist: [{ id: 'c121', text: '机会描述', responseRequired: true, responsePrompt: '旧引导' }], questions: [] }],
+      deliverables: [], exitCriteria: [], minEvidence: 0
+    }]
+  }] as unknown as AppData['playbooks']
+  return data
+}
+
 test.each([1, 2])('v%s data migrates directly to v3 compatibility questions', (version) => {
   const result = migrateData(legacyData(version, [{ id: 'c121', text: '完成一句话产品机会描述', done: true, responseRequired: true, responsePrompt: '一句话机会', response: '已有内容' }]))
   const step = migratedStep(result.data)
@@ -34,6 +46,14 @@ test.each([1, 2])('v%s data migrates directly to v3 compatibility questions', (v
   expect(step.questions).toEqual([{ id: 'legacy_question_c121', q: '一句话机会' }])
   expect(step.answers).toEqual({ legacy_question_c121: '已有内容' })
   expect(step.checklist).toEqual([{ id: 'c121', text: '完成一句话产品机会描述', done: true }])
+})
+
+test.each([1, 2])('v%s migration removes legacy checklist fields from persisted playbooks', (version) => {
+  const result = migrateData(legacyPlaybookData(version))
+  const checklist = result.data.playbooks[0].stages[0].steps[0].checklist
+
+  expect(result.changed).toBe(true)
+  expect(checklist).toEqual([{ id: 'c121', text: '机会描述' }])
 })
 
 test('migrates every non-empty legacy response with stable compatibility IDs', () => {

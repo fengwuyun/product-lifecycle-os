@@ -89,7 +89,7 @@ export function createProject(input: { name: string; description: string; priori
       name: s.name,
       goal: s.goal,
       description: s.description,
-      checklist: s.checklist.map((c) => ({ ...c, done: false })),
+      checklist: s.checklist.map((c) => ({ id: c.id, text: c.text, done: false })),
       questions: s.questions.map((q) => ({ ...q })),
       answers: {},
       status: 'todo' as const
