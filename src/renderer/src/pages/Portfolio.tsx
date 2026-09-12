@@ -50,7 +50,7 @@ export function PortfolioPage() {
   })
   const projects = query ? sortedProjects.filter((project) => projectMatchesSearch(project, query)) : sortedProjects
   const recentProjects = workspace.recentProjectIds.map((id) => data.projects.find((project) => project.id === id)).filter((project): project is Project => Boolean(project)).slice(0, 5)
-  const focus = projects.find((p) => p.priority === 'P1' && (p.status === 'active' || p.status === 'waiting'))
+  const focus = sortedProjects.find((p) => p.priority === 'P1' && (p.status === 'active' || p.status === 'waiting'))
   const evidences = data.evidences
 
   const createDemo = async () => {

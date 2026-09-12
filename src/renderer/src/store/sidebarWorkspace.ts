@@ -30,7 +30,11 @@ function readWorkspace(): PersistedWorkspace {
   } catch { return { version: 2, projectIds: [], expandedProjectIds: [], recentProjectIds: [] } }
 }
 function persist(state: PersistedWorkspace): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, projectIds: state.projectIds, expandedProjectIds: state.expandedProjectIds, recentProjectIds: state.recentProjectIds }))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, projectIds: state.projectIds, expandedProjectIds: state.expandedProjectIds, recentProjectIds: state.recentProjectIds }))
+  } catch {
+    // 存储空间不可用时仍保留本次会话的内存工作区。
+  }
 }
 const initial = readWorkspace()
 persist(initial)

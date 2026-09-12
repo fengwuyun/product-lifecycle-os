@@ -45,6 +45,18 @@ test('侧边栏工作区安全迁移 v1 本地状态到 v2', async () => {
   expect(migratedWorkspace.getState()).toMatchObject({ version: 2, projectIds: ['one', 'two'], expandedProjectIds: ['two'], recentProjectIds: [] })
 })
 
+test('本地存储写入失败时，工作区仍可在内存中启动和更新', async () => {
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage disabled') })
+  try {
+    vi.resetModules()
+    const { useSidebarWorkspace: memoryWorkspace } = await import('../store/sidebarWorkspace')
+    expect(() => memoryWorkspace.getState().openProject('one')).not.toThrow()
+    expect(memoryWorkspace.getState()).toMatchObject({ projectIds: ['one'], recentProjectIds: ['one'] })
+  } finally {
+    setItem.mockRestore()
+  }
+})
+
 test('最近项目去重、限五个并在 hydrate 时过滤失效 ID', () => {
   useSidebarWorkspace.setState({ version: 2, projectIds: ['one', 'two', 'three', 'four', 'five', 'six'], expandedProjectIds: [], recentProjectIds: [] })
   ;['one', 'two', 'three', 'four', 'five', 'six', 'two'].forEach((id) => useSidebarWorkspace.getState().markRecent(id))
@@ -81,6 +93,17 @@ test('项目搜索覆盖名称、描述、当前阶段及本地化状态', () =>
   } as Project
   expect(['增长', '订阅', '机会发现', '发现', '等待中'].every((query) => projectMatchesSearch(searchable, query))).toBe(true)
   expect(projectMatchesSearch(searchable, '不存在')).toBe(false)
+})
+
+test('搜索只过滤项目列表，不改变当前焦点', async () => {
+  const focusProject = { ...project, name: '持续焦点' }
+  const matchedProject = { ...project, id: 'prj-match', name: '搜索命中', priority: 'P2' as const }
+  useApp.setState({ data: { ...emptyData, projects: [focusProject, matchedProject] } })
+  render(<MemoryRouter><PortfolioPage /></MemoryRouter>)
+
+  await userEvent.type(screen.getByLabelText('搜索项目'), '命中')
+  expect(screen.getByText('持续焦点')).toBeTruthy()
+  expect(screen.getByText('搜索命中')).toBeTruthy()
 })
 
 function LocationProbe() {
@@ -169,6 +192,8 @@ test('侧边栏可同时展示多个项目，拖动时自动折叠当前项目',
   expect(screen.getAllByText('1. 阶段 1')).toHaveLength(2)
   await userEvent.click(screen.getByRole('button', { name: '全部折叠' }))
   expect(useSidebarWorkspace.getState().expandedProjectIds).toEqual([])
+  useSidebarWorkspace.getState().toggleExpanded(first.id)
+  expect(useSidebarWorkspace.getState().expandedProjectIds).toContain(first.id)
   const projectRow = screen.getByText('测试项目').closest('[draggable="true"]') as HTMLElement
   fireEvent.dragStart(projectRow, { dataTransfer: { effectAllowed: '', setData: vi.fn() } })
   await waitFor(() => expect(useSidebarWorkspace.getState().expandedProjectIds).not.toContain(first.id))
