@@ -24,7 +24,22 @@ export function StepPage() {
   // 本地草稿状态（输入即时响应，失焦/切换时保存）
   const [draft, setDraft] = useState<ProjectStep | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveRevisionRef = useRef(0)
+  const currentStepKey = `${projectId ?? ''}:${stageId ?? ''}:${stepId ?? ''}`
+  const currentStepKeyRef = useRef(currentStepKey)
   const savedAtRef = useRef<string>('')
+  currentStepKeyRef.current = currentStepKey
+
+  useEffect(() => {
+    saveRevisionRef.current += 1
+    setSaveState('idle')
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+        saveTimer.current = null
+      }
+    }
+  }, [currentStepKey])
 
   useEffect(() => {
     if (!data) return
@@ -50,6 +65,8 @@ export function StepPage() {
 
   const persist = (checklist: ProjectStep['checklist'], answers: ProjectStep['answers']) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
+    const revision = ++saveRevisionRef.current
+    const stepKey = currentStepKey
     setSaveState('saving')
     saveTimer.current = setTimeout(async () => {
       try {
@@ -58,10 +75,12 @@ export function StepPage() {
           patch: { checklist, answers }
         })
         await load()
-        setSaveState('saved')
+        if (saveRevisionRef.current === revision && currentStepKeyRef.current === stepKey) setSaveState('saved')
       } catch (err) {
-        setSaveState('error')
-        toast((err as Error).message, 'bad')
+        if (saveRevisionRef.current === revision && currentStepKeyRef.current === stepKey) {
+          setSaveState('error')
+          toast((err as Error).message, 'bad')
+        }
       }
     }, 450)
   }
