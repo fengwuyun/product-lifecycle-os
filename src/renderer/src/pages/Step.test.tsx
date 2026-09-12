@@ -29,9 +29,9 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers())
 
-function deferred() {
-  let resolve!: () => void
-  const promise = new Promise<void>((done) => { resolve = done })
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
   return { promise, resolve }
 }
 
@@ -64,7 +64,7 @@ test('切换检查项不要求回答，且上一步箭头没有旋转样式', as
 })
 
 test('旧保存完成时不会覆盖同一 Step 的最新保存状态', async () => {
-  const firstSave = deferred()
+  const firstSave = deferred<void>()
   vi.mocked(window.api.stepSave).mockImplementationOnce(() => firstSave.promise).mockResolvedValue(undefined)
   render(<MemoryRouter initialEntries={['/project/project/stage/stage/step/step']}><Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes></MemoryRouter>)
   const answer = (await screen.findAllByPlaceholderText('基于真实观察回答，不要臆测……'))[0]
@@ -87,8 +87,11 @@ test('旧保存完成时不会覆盖同一 Step 的最新保存状态', async ()
 })
 
 test('切换 Step 后旧保存完成不会回写新 Step 的保存状态', async () => {
-  const oldSave = deferred()
+  const oldSave = deferred<void>()
+  const oldLoad = deferred<AppData>()
+  const reloadedData = { ...data, meta: { ...data.meta } } as AppData
   vi.mocked(window.api.stepSave).mockImplementationOnce(() => oldSave.promise)
+  vi.mocked(window.api.getData).mockImplementationOnce(() => oldLoad.promise)
   render(<MemoryRouter initialEntries={['/project/project/stage/stage/step/step']}><Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes></MemoryRouter>)
   const answer = (await screen.findAllByPlaceholderText('基于真实观察回答，不要臆测……'))[0]
   vi.useFakeTimers()
@@ -102,6 +105,10 @@ test('切换 Step 后旧保存完成不会回写新 Step 的保存状态', async
   expect(screen.queryByRole('status')).toBeNull()
 
   oldSave.resolve()
-  await Promise.resolve()
-  expect(screen.queryByRole('status')).toBeNull()
+  await waitFor(() => expect(window.api.getData).toHaveBeenCalledTimes(1))
+  oldLoad.resolve(reloadedData)
+  await waitFor(() => {
+    expect(useApp.getState().data).toBe(reloadedData)
+    expect(screen.queryByRole('status')).toBeNull()
+  })
 })
