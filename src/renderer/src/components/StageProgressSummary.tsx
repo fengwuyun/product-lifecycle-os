@@ -86,6 +86,9 @@ export function StageProgressSummary({ project, stage, evidences }: {
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
         {metrics.map((metric) => {
           const percentage = metric.total === 0 ? 100 : Math.min(100, (metric.done / metric.total) * 100)
+          const ariaValueMax = metric.total || 1
+          const ariaValueNow = metric.total === 0 ? 0 : Math.min(metric.done, metric.total)
+          const ariaValueText = metric.total === 0 ? `无需完成（${metric.done}/${metric.total}）` : `${metric.done}/${metric.total}`
           return (
             <div key={metric.label} className="min-w-0">
               <div className="flex items-center justify-between gap-2 text-[11.5px] text-ink-3">
@@ -96,8 +99,9 @@ export function StageProgressSummary({ project, stage, evidences }: {
                 role="progressbar"
                 aria-label={`${metric.label}：${metric.done}/${metric.total}`}
                 aria-valuemin={0}
-                aria-valuemax={metric.total || 1}
-                aria-valuenow={metric.total === 0 ? 1 : metric.done}
+                aria-valuemax={ariaValueMax}
+                aria-valuenow={ariaValueNow}
+                aria-valuetext={ariaValueText}
                 className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line"
               >
                 <div className={`h-full rounded-full transition-[width] ${metric.complete ? 'bg-ok' : 'bg-primary'}`} style={{ width: `${percentage}%` }} />

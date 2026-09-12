@@ -73,3 +73,30 @@ test('零证据要求视为完成，全部完成时显示阶段决策条件已�
   expect(screen.getByText('已满足阶段决策条件')).toBeTruthy()
   expect(screen.getAllByRole('progressbar')).toHaveLength(5)
 })
+
+test('超额 Evidence 保持真实计数，同时将进度条 ARIA 数值限制在要求范围内', () => {
+  const stage = makeStage({
+    steps: [{ id: 'step-1', name: '定义问题', goal: '', description: '', checklist: [], questions: [], answers: {}, status: 'done' }],
+    todos: [{ id: 'todo-1', text: '完成访谈', done: true }],
+    deliverables: [{ id: 'deliverable-1', name: '访谈记录', description: '', required: true, content: '已提交', artifactIds: [] }],
+    exitCriteria: [{ id: 'criterion-1', text: '确认问题', met: true }],
+    minEvidence: 2
+  })
+  const evidences = [evidence(), { ...evidence(), id: 'evidence-2' }, { ...evidence(), id: 'evidence-3' }]
+  render(<StageProgressSummary project={project} stage={stage} evidences={evidences} />)
+
+  const progress = screen.getByRole('progressbar', { name: '证据（Evidence）：3/2' })
+  expect(progress.getAttribute('aria-valuemax')).toBe('2')
+  expect(progress.getAttribute('aria-valuenow')).toBe('2')
+  expect(progress.getAttribute('aria-valuetext')).toBe('3/2')
+})
+
+test('零要求使用准确的无需完成 ARIA 文本，不伪装为 1/1', () => {
+  const stage = makeStage({ steps: [], todos: [], deliverables: [], exitCriteria: [], minEvidence: 0 })
+  render(<StageProgressSummary project={project} stage={stage} evidences={[]} />)
+
+  const progress = screen.getByRole('progressbar', { name: '证据（Evidence）：0/0' })
+  expect(progress.getAttribute('aria-valuemax')).toBe('1')
+  expect(progress.getAttribute('aria-valuenow')).toBe('0')
+  expect(progress.getAttribute('aria-valuetext')).toBe('无需完成（0/0）')
+})
