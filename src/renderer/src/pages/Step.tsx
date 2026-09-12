@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ChevronRight, Target, Info, CheckSquare, Square, Sparkles,
-  FileText, Plus, CheckCircle2, CircleDot, ChevronDown
+  FileText, Plus, CheckCircle2, CircleDot
 } from 'lucide-react'
 import { useApp, fmtDate } from '../store/app'
 import { Button, Card, Badge, StrengthBadge, EmptyState } from '../components/ui'
@@ -19,7 +19,7 @@ export function StepPage() {
   const [viewArtifact, setViewArtifact] = useState<string | null>(null)
   const [assist, setAssist] = useState('')
   const [assistBusy, setAssistBusy] = useState(false)
-  const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   // 本地草稿状态（输入即时响应，失焦/切换时保存）
   const [draft, setDraft] = useState<ProjectStep | null>(null)
@@ -50,6 +50,7 @@ export function StepPage() {
 
   const persist = (checklist: ProjectStep['checklist'], answers: ProjectStep['answers']) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
+    setSaveState('saving')
     saveTimer.current = setTimeout(async () => {
       try {
         await window.api.stepSave({
@@ -57,25 +58,18 @@ export function StepPage() {
           patch: { checklist, answers }
         })
         await load()
-      } catch (err) { toast((err as Error).message, 'bad') }
+        setSaveState('saved')
+      } catch (err) {
+        setSaveState('error')
+        toast((err as Error).message, 'bad')
+      }
     }, 450)
   }
 
   const toggleCheck = (cid: string) => {
     const current = draft.checklist.find((c) => c.id === cid)
     if (!current) return
-    if (!current.done && current.responseRequired && !current.response?.trim()) {
-      setExpandedResponseId(cid)
-      toast('请先填写完成说明，再勾选此项', 'bad')
-      return
-    }
     const checklist = draft.checklist.map((c) => (c.id === cid ? { ...c, done: !c.done } : c))
-    setDraft({ ...draft, checklist })
-    persist(checklist, draft.answers)
-  }
-
-  const setChecklistResponse = (cid: string, value: string) => {
-    const checklist = draft.checklist.map((c) => (c.id === cid ? { ...c, response: value } : c))
     setDraft({ ...draft, checklist })
     persist(checklist, draft.answers)
   }
@@ -88,12 +82,6 @@ export function StepPage() {
 
   const complete = async () => {
     const willComplete = draft.status !== 'done'
-    const invalid = willComplete && draft.checklist.find((c) => c.done && c.responseRequired && !c.response?.trim())
-    if (invalid) {
-      setExpandedResponseId(invalid.id)
-      toast(`请先填写「${invalid.text}」的完成说明`, 'bad')
-      return
-    }
     try {
       // 先落盘草稿再标记完成
       await window.api.stepSave({
@@ -173,63 +161,47 @@ export function StepPage() {
           </h2>
         </div>
       </div>
-      <Card className="p-4 mb-6">
+      <Card className="p-4 mb-6" data-testid="checklist-card">
         <div className="space-y-2.5">
           {draft.checklist.map((c) => {
-            const responseOpen = expandedResponseId === c.id
             return (
-              <div key={c.id} className={`rounded-[10px] border transition-colors ${responseOpen ? 'border-primary-line bg-primary-soft/20' : 'border-transparent'}`}>
+              <div key={c.id} className="rounded-[10px] border border-transparent transition-colors">
                 <div className="flex items-center gap-3 px-2 py-1.5 text-[13.5px] group">
                   <button type="button" aria-label={c.done ? `取消完成 ${c.text}` : `完成 ${c.text}`} onClick={() => toggleCheck(c.id)}>
                     {c.done ? <CheckSquare size={17} className="text-ok flex-shrink-0" /> : <Square size={17} className="text-line-2 group-hover:text-primary flex-shrink-0" />}
                   </button>
-                  <button type="button" className="flex-1 min-w-0 text-left" onClick={() => c.responseRequired ? setExpandedResponseId(responseOpen ? null : c.id) : toggleCheck(c.id)}>
+                  <button type="button" className="flex-1 min-w-0 text-left" onClick={() => toggleCheck(c.id)}>
                     <span className={c.done ? 'line-through text-ink-3' : ''}>{c.text}</span>
                   </button>
-                  {c.responseRequired && (
-                    <button type="button" onClick={() => setExpandedResponseId(responseOpen ? null : c.id)} className={`flex items-center gap-1 text-[11.5px] ${c.response?.trim() ? 'text-ok' : 'text-primary'}`}>
-                      {c.response?.trim() ? '已填写' : '填写完成说明'}
-                      <ChevronDown size={13} className={`transition-transform ${responseOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                  )}
                 </div>
-                {c.responseRequired && responseOpen && (
-                  <div className="px-2 pb-2.5 pl-9">
-                    <div className="text-[11.5px] text-ink-3 mb-1.5">{c.responsePrompt || '请填写该检查项的完成说明或实际结果。'}</div>
-                    <textarea
-                      rows={3}
-                      autoFocus
-                      value={c.response || ''}
-                      onChange={(e) => setChecklistResponse(c.id, e.target.value)}
-                      placeholder="填写实际完成结果、判断依据或可追溯的记录……"
-                    />
-                  </div>
-                )}
               </div>
             )
           })}
         </div>
-      </Card>
-
-      {/* 需要回答的问题 */}
-      {draft.questions.length > 0 && (
-        <>
-          <h2 className="font-bold text-[15.5px] flex items-center gap-2 mb-2.5">
-            <CircleDot size={15} className="text-primary" /> 需要回答的问题
-            <span className="text-[12px] font-normal text-ink-3">回答会自动保存，并汇入阶段成果</span>
-          </h2>
-          <div className="space-y-3 mb-6">
+        {draft.questions.length > 0 && (
+          <div className="border-t border-line mt-4 pt-4">
+            <div className="font-bold text-[15.5px] flex items-center gap-2 mb-3">
+              <CircleDot size={15} className="text-primary" /> 需要回答的问题
+              <span className="text-[12px] font-normal text-ink-3">回答会自动保存，并汇入阶段成果</span>
+              {saveState !== 'idle' && (
+                <span role="status" className={saveState === 'error' ? 'text-bad text-[12px] font-normal' : 'text-ink-3 text-[12px] font-normal'}>
+                  {saveState === 'saving' ? '保存中…' : saveState === 'saved' ? '已保存' : '保存失败'}
+                </span>
+              )}
+            </div>
+            <div className="space-y-3">
             {draft.questions.map((q) => (
-              <Card key={q.id} className="p-4">
+              <div key={q.id} className="rounded-[10px] bg-[#faf9f6] p-3.5">
                 <div className="text-[13.5px] font-semibold mb-1">{q.q}</div>
                 {q.hint && <div className="text-[12px] text-ink-3 mb-2.5">{q.hint}</div>}
                 <textarea rows={3} value={draft.answers[q.id] || ''} onChange={(e) => setAnswer(q.id, e.target.value)}
                   placeholder="基于真实观察回答，不要臆测……" />
-              </Card>
+              </div>
             ))}
+            </div>
           </div>
-        </>
-      )}
+        )}
+      </Card>
 
       {/* AI 辅助 */}
       <Card className="p-4 mb-6 bg-gradient-to-r from-primary-soft/40 to-white border-primary-line">
@@ -290,12 +262,12 @@ export function StepPage() {
       {/* 上一步 / 下一步 */}
       <div className="flex items-center justify-between">
         {prevStep ? (
-          <Link to={`/project/${project.id}/stage/${stage.id}/step/${prevStep.id}`}>
-            <Button variant="ghost"><ArrowLeft size={14} className="rotate-180" style={{ marginRight: 4 }} /> {prevStep.name}</Button>
+          <Link to={`/project/${project.id}/stage/${stage.id}/step/${prevStep.id}`} aria-label={`上一步：${prevStep.name}`}>
+            <Button variant="ghost"><ArrowLeft size={14} style={{ marginRight: 4 }} /> {prevStep.name}</Button>
           </Link>
         ) : <span />}
         {nextStep ? (
-          <Link to={`/project/${project.id}/stage/${stage.id}/step/${nextStep.id}`}>
+          <Link to={`/project/${project.id}/stage/${stage.id}/step/${nextStep.id}`} aria-label={`下一步：${nextStep.name}`}>
             <Button variant="ghost">{nextStep.name} <ChevronRight size={14} /></Button>
           </Link>
         ) : (
