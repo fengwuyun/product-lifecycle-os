@@ -1,13 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { ToastHost } from '../App'
 import { ArtifactModal, CreateProjectModal, ClaimInlineAdd, DeliverableModal, EvidenceModal } from './modals'
 import { Sidebar } from './Sidebar'
 import { Button, Modal } from './ui'
-import { getMenuPosition, PortfolioPage } from '../pages/Portfolio'
+import { getMenuPosition, PortfolioPage, projectMatchesSearch } from '../pages/Portfolio'
 import { PipelinePage } from '../pages/Pipeline'
 import { SettingsPage } from '../pages/Settings'
 import { StagePage } from '../pages/Stage'
@@ -35,7 +35,71 @@ const emptyData = {
 beforeEach(() => {
   localStorage.clear()
   useApp.setState({ data: emptyData, loading: false, toasts: [], portfolioView: 'list' })
-  useSidebarWorkspace.setState({ version: 1, projectIds: [], expandedProjectIds: [] })
+  useSidebarWorkspace.setState({ version: 2, projectIds: [], expandedProjectIds: [], recentProjectIds: [] })
+})
+
+test('侧边栏工作区安全迁移 v1 本地状态到 v2', async () => {
+  localStorage.setItem('lifecycle.sidebar-workspace.v1', JSON.stringify({ version: 1, projectIds: ['one', 'one', 'two'], expandedProjectIds: ['two', 'two'] }))
+  vi.resetModules()
+  const { useSidebarWorkspace: migratedWorkspace } = await import('../store/sidebarWorkspace')
+  expect(migratedWorkspace.getState()).toMatchObject({ version: 2, projectIds: ['one', 'two'], expandedProjectIds: ['two'], recentProjectIds: [] })
+})
+
+test('最近项目去重、限五个并在 hydrate 时过滤失效 ID', () => {
+  useSidebarWorkspace.setState({ version: 2, projectIds: ['one', 'two', 'three', 'four', 'five', 'six'], expandedProjectIds: [], recentProjectIds: [] })
+  ;['one', 'two', 'three', 'four', 'five', 'six', 'two'].forEach((id) => useSidebarWorkspace.getState().markRecent(id))
+  expect(useSidebarWorkspace.getState().recentProjectIds).toEqual(['two', 'six', 'five', 'four', 'three'])
+  useSidebarWorkspace.getState().hydrate(['two', 'four'])
+  expect(useSidebarWorkspace.getState().recentProjectIds).toEqual(['two', 'four'])
+})
+
+test('打开项目会记录最近访问，但不会改变拖动后的项目顺序', () => {
+  useSidebarWorkspace.setState({ version: 2, projectIds: ['one', 'two', 'three'], expandedProjectIds: [], recentProjectIds: ['three'] })
+  useSidebarWorkspace.getState().moveProject('three', 'one')
+  useSidebarWorkspace.getState().openProject('two')
+  expect(useSidebarWorkspace.getState().projectIds).toEqual(['three', 'one', 'two'])
+  expect(useSidebarWorkspace.getState().recentProjectIds).toEqual(['two', 'three'])
+})
+
+test('全部折叠会清除所有展开项目', () => {
+  useSidebarWorkspace.setState({ version: 2, projectIds: ['one', 'two'], expandedProjectIds: ['one', 'two'], recentProjectIds: [] })
+  useSidebarWorkspace.getState().collapseAll()
+  expect(useSidebarWorkspace.getState().expandedProjectIds).toEqual([])
+})
+
+test('项目搜索覆盖名称、描述、当前阶段及本地化状态', () => {
+  const searchable = {
+    ...project,
+    name: '增长实验',
+    description: '为订阅转化建立假设',
+    status: 'waiting',
+    currentStageId: 'stage-discovery',
+    workflowSnapshot: {
+      ...project.workflowSnapshot,
+      stages: [{ id: 'stage-discovery', name: '机会发现', short: '发现', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [], steps: [], deliverables: [], exitCriteria: [], minEvidence: 0, status: 'active' }]
+    }
+  } as Project
+  expect(['增长', '订阅', '机会发现', '发现', '等待中'].every((query) => projectMatchesSearch(searchable, query))).toBe(true)
+  expect(projectMatchesSearch(searchable, '不存在')).toBe(false)
+})
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="current-location">{location.pathname}</output>
+}
+
+test('无结果可清除搜索，最近项目快捷入口可导航', async () => {
+  const recent = { ...project, id: 'prj-recent', name: '最近项目' }
+  useApp.setState({ data: { ...emptyData, projects: [project, recent] } })
+  useSidebarWorkspace.setState({ version: 2, projectIds: [project.id, recent.id], expandedProjectIds: [], recentProjectIds: [recent.id] })
+  render(<MemoryRouter initialEntries={['/']}><Routes><Route path="*" element={<><PortfolioPage /><LocationProbe /></>} /></Routes></MemoryRouter>)
+
+  await userEvent.type(screen.getByLabelText('搜索项目'), '没有结果')
+  expect(screen.getByText('未找到匹配项目')).toBeTruthy()
+  await userEvent.click(screen.getByRole('button', { name: '清除搜索' }))
+  expect((screen.getByLabelText('搜索项目') as HTMLInputElement).value).toBe('')
+  await userEvent.click(screen.getByRole('button', { name: '最近项目' }))
+  expect(screen.getByTestId('current-location').textContent).toBe('/project/prj-recent')
 })
 
 test('创建成功后先刷新全局数据，再进入新项目', async () => {
@@ -95,13 +159,16 @@ test('侧边栏可同时展示多个项目，拖动时自动折叠当前项目',
   const another = { ...project, id: 'prj-two', name: '第二个项目', workflowSnapshot: { ...project.workflowSnapshot, stages } }
   const first = { ...project, workflowSnapshot: { ...project.workflowSnapshot, stages } }
   useApp.setState({ data: { ...emptyData, projects: [first, another] } })
-  useSidebarWorkspace.setState({ version: 1, projectIds: [first.id, another.id], expandedProjectIds: [first.id, another.id] })
+  useSidebarWorkspace.setState({ version: 2, projectIds: [first.id, another.id], expandedProjectIds: [first.id, another.id], recentProjectIds: [] })
   window.api = { getData: vi.fn() } as unknown as typeof window.api
   render(<MemoryRouter initialEntries={[`/project/${first.id}`]}><Sidebar /></MemoryRouter>)
 
   expect(screen.getByText('测试项目')).toBeTruthy()
   expect(screen.getByText('第二个项目')).toBeTruthy()
+  expect(screen.getByText('已打开项目 · 2')).toBeTruthy()
   expect(screen.getAllByText('1. 阶段 1')).toHaveLength(2)
+  await userEvent.click(screen.getByRole('button', { name: '全部折叠' }))
+  expect(useSidebarWorkspace.getState().expandedProjectIds).toEqual([])
   const projectRow = screen.getByText('测试项目').closest('[draggable="true"]') as HTMLElement
   fireEvent.dragStart(projectRow, { dataTransfer: { effectAllowed: '', setData: vi.fn() } })
   await waitFor(() => expect(useSidebarWorkspace.getState().expandedProjectIds).not.toContain(first.id))
@@ -111,7 +178,7 @@ test('侧边栏可同时展示多个项目，拖动时自动折叠当前项目',
 
 test('右键移除只改变侧边栏工作区，不删除项目数据', async () => {
   useApp.setState({ data: { ...emptyData, projects: [project] } })
-  useSidebarWorkspace.setState({ version: 1, projectIds: [project.id], expandedProjectIds: [project.id] })
+  useSidebarWorkspace.setState({ version: 2, projectIds: [project.id], expandedProjectIds: [project.id], recentProjectIds: [] })
   window.api = { getData: vi.fn() } as unknown as typeof window.api
   render(<MemoryRouter initialEntries={[`/project/${project.id}`]}><Sidebar /></MemoryRouter>)
   await userEvent.pointer({ target: screen.getByText('测试项目'), keys: '[MouseRight]' })
@@ -124,7 +191,7 @@ test('右键移除只改变侧边栏工作区，不删除项目数据', async ()
 
 test('项目菜单支持键盘打开、自动聚焦，并在滚动时关闭', async () => {
   useApp.setState({ data: { ...emptyData, projects: [project] } })
-  useSidebarWorkspace.setState({ version: 1, projectIds: [project.id], expandedProjectIds: [] })
+  useSidebarWorkspace.setState({ version: 2, projectIds: [project.id], expandedProjectIds: [], recentProjectIds: [] })
   window.api = { getData: vi.fn() } as unknown as typeof window.api
   render(<MemoryRouter initialEntries={[`/project/${project.id}`]}><Sidebar /></MemoryRouter>)
   const row = screen.getByLabelText('测试项目 项目菜单')
