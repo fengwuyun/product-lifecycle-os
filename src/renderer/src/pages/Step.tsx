@@ -328,8 +328,8 @@ export function StepPage() {
         )}
       </div>
 
-      <EvidenceModal open={evOpen} onClose={() => setEvOpen(false)} project={project} stage={stage} claims={claims} onAdded={load} />
-      <ArtifactModal open={artOpen} onClose={() => setArtOpen(false)} project={project} stage={stage} onAdded={load} />
+      {evOpen && <EvidenceModal open onClose={() => setEvOpen(false)} project={project} stage={stage} claims={claims} onAdded={load} />}
+      {artOpen && <ArtifactModal open onClose={() => setArtOpen(false)} project={project} stage={stage} onAdded={load} />}
       <ArtifactViewer open={!!viewArtifact} onClose={() => setViewArtifact(null)} artifactId={viewArtifact} />
     </div>
   )

@@ -38,7 +38,7 @@ function legacyPlaybookData(version: number): AppData {
   return data
 }
 
-test.each([1, 2])('v%s data migrates directly to v3 compatibility questions', (version) => {
+test.each([1, 2, 3])('v%s data migrates directly to current compatibility questions', (version) => {
   const result = migrateData(legacyData(version, [{ id: 'c121', text: '完成一句话产品机会描述', done: true, responseRequired: true, responsePrompt: '一句话机会', response: '已有内容' }]))
   const step = migratedStep(result.data)
 
@@ -49,7 +49,7 @@ test.each([1, 2])('v%s data migrates directly to v3 compatibility questions', (v
   expect(step.checklist).toEqual([{ id: 'c121', text: '完成一句话产品机会描述', done: true }])
 })
 
-test.each([1, 2])('v%s migration removes legacy checklist fields from persisted playbooks', (version) => {
+test.each([1, 2, 3])('v%s migration removes legacy checklist fields from persisted playbooks', (version) => {
   const result = migrateData(legacyPlaybookData(version))
   const checklist = result.data.playbooks[0].stages[0].steps[0].checklist
 
@@ -97,24 +97,33 @@ test('removes all legacy checklist fields and is idempotent', () => {
   expect(second.data).toEqual(beforeSecondMigration)
 })
 
-test('only fills missing q120/q130 in the persisted default Playbook and keeps project snapshots unchanged', () => {
+test('fills missing Todo questions in persisted playbooks and existing project snapshots in canonical order', () => {
   const data = legacyData(3, [])
   const defaultPlaybook = buildDefaultPlaybook()
   for (const step of defaultPlaybook.stages.flatMap((stage) => stage.steps)) {
     if (step.id === 'op_s2') step.questions = step.questions.filter((question) => question.id !== 'q120')
-    if (step.id === 'op_s3') step.questions = step.questions.filter((question) => question.id !== 'q130')
   }
   data.playbooks = [defaultPlaybook]
   const snapshot = data.projects[0].workflowSnapshot.stages[0].steps[0]
   snapshot.id = 'op_s2'
-  snapshot.questions = [{ id: 'existing', q: '保留的项目问题' }]
-  snapshot.answers = { existing: '保留的项目回答' }
+  snapshot.questions = [{ id: 'q122', q: '保留的项目场景问题' }, { id: 'existing', q: '保留的项目问题' }]
+  snapshot.answers = { q122: '保留的场景回答', existing: '保留的项目回答' }
 
   const result = migrateData(data)
   const defaultSteps = result.data.playbooks[0].stages.flatMap((stage) => stage.steps)
 
   expect(defaultSteps.find((step) => step.id === 'op_s2')?.questions.map((question) => question.id)).toContain('q120')
-  expect(defaultSteps.find((step) => step.id === 'op_s3')?.questions.map((question) => question.id)).toContain('q130')
-  expect(snapshot.questions).toEqual([{ id: 'existing', q: '保留的项目问题' }])
-  expect(snapshot.answers).toEqual({ existing: '保留的项目回答' })
+  expect(snapshot.questions.map((question) => question.id)).toEqual(['q120', 'q121', 'q122', 'existing'])
+  expect(snapshot.questions.find((question) => question.id === 'q122')?.q).toBe('保留的项目场景问题')
+  expect(snapshot.answers).toEqual({ q122: '保留的场景回答', existing: '保留的项目回答' })
+})
+
+test('default questions cover written Todo outputs without adding inputs for submission actions', () => {
+  const steps = buildDefaultPlaybook().stages.flatMap((stage) => stage.steps)
+  const byId = (stepId: string) => steps.find((step) => step.id === stepId)!.questions.map((question) => question.id)
+
+  expect(byId('op_s2')).toEqual(['q120', 'q121', 'q122'])
+  expect(byId('op_s4')).toEqual(['q141'])
+  expect(byId('co_s2')).toEqual(['q320', 'q321', 'q322', 'q323'])
+  expect(byId('mv_s3')).toEqual(['q530', 'q531', 'q532'])
 })

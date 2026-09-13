@@ -1,11 +1,7 @@
-import type { AppData, ProjectChecklistItem } from '../shared/types'
+import type { AppData, PlaybookStageDef, ProjectChecklistItem, ProjectStage } from '../shared/types'
+import { buildDefaultPlaybook } from './defaultPlaybook'
 
-export const DATA_VERSION = 3
-
-const DEFAULT_PLAYBOOK_QUESTIONS = [
-  { stepId: 'op_s2', question: { id: 'q120', q: '用一句话描述这个产品机会：为谁、在什么场景、解决什么问题？' } },
-  { stepId: 'op_s3', question: { id: 'q130', q: '用户真正需要解决的核心问题是什么？' } }
-] as const
+export const DATA_VERSION = 4
 
 type LegacyChecklistItem = ProjectChecklistItem & {
   responseRequired?: boolean
@@ -20,8 +16,34 @@ type LegacyChecklistDefinition = {
   responsePrompt?: string
 }
 
+type QuestionStage = Pick<PlaybookStageDef | ProjectStage, 'steps'>
+
+function syncDefaultQuestions(stages: QuestionStage[], canonicalStages: PlaybookStageDef[]): boolean {
+  const canonicalSteps = new Map(canonicalStages.flatMap((stage) => stage.steps).map((step) => [step.id, step]))
+  let changed = false
+
+  for (const step of stages.flatMap((stage) => stage.steps)) {
+    const canonical = canonicalSteps.get(step.id)
+    if (!canonical) continue
+
+    const existingById = new Map(step.questions.map((question) => [question.id, question]))
+    const canonicalIds = new Set(canonical.questions.map((question) => question.id))
+    const questions = [
+      ...canonical.questions.map((question) => existingById.get(question.id) ?? { ...question }),
+      ...step.questions.filter((question) => !canonicalIds.has(question.id))
+    ]
+    if (questions.length !== step.questions.length || questions.some((question, index) => question.id !== step.questions[index]?.id)) {
+      step.questions = questions
+      changed = true
+    }
+  }
+
+  return changed
+}
+
 export function migrateData(input: AppData): { data: AppData; changed: boolean } {
   let changed = input.meta.version < DATA_VERSION
+  const canonicalStages = buildDefaultPlaybook().stages
 
   for (const playbook of input.playbooks) {
     for (const stage of playbook.stages) {
@@ -34,17 +56,7 @@ export function migrateData(input: AppData): { data: AppData; changed: boolean }
       }
     }
 
-    // 已持久化的默认 Playbook 不会在启动时重新 seed；只补其缺失的默认问题，
-    // 不触碰用户编辑过的问题、更不修改既有项目的 workflowSnapshot。
-    if (playbook.id === 'pb_default') {
-      for (const { stepId, question } of DEFAULT_PLAYBOOK_QUESTIONS) {
-        const step = playbook.stages.flatMap((stage) => stage.steps).find((candidate) => candidate.id === stepId)
-        if (step && !step.questions.some((candidate) => candidate.id === question.id)) {
-          step.questions.push({ ...question })
-          changed = true
-        }
-      }
-    }
+    if (syncDefaultQuestions(playbook.stages, canonicalStages)) changed = true
   }
 
   for (const project of input.projects) {
@@ -63,6 +75,7 @@ export function migrateData(input: AppData): { data: AppData; changed: boolean }
         })
       }
     }
+    if (syncDefaultQuestions(project.workflowSnapshot.stages, canonicalStages)) changed = true
   }
 
   if (input.meta.version !== DATA_VERSION) input.meta.version = DATA_VERSION

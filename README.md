@@ -1,13 +1,13 @@
 # Product Lifecycle OS
 
 > 产品生命周期执行与决策工具 —— 面向独立开发者、产品经理与小微团队
-> 依据《Product-Lifecycle-OS-PRD-v0.1》实现，版本 v0.1.0
+> 依据《Product-Lifecycle-OS-PRD-v0.1》实现，版本 v0.1.1
 
 ## 桌面可运行文件（交付物）
 
 | 文件 | 说明 |
 |---|---|
-| `dist/Product-Lifecycle-OS-0.1.0-portable.exe` | **单文件便携版（约 85MB），双击即可运行，无需安装** |
+| `dist/Product-Lifecycle-OS-0.1.1-portable.exe` | **单文件便携版（约 85MB），双击即可运行，无需安装** |
 
 - 数据全部保存在本机：`C:\Users\<你>\AppData\Roaming\Product Lifecycle OS\data`
 - 卸载即删：便携版不写注册表、不留服务，删除 exe 与上述数据目录即完全移除

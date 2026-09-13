@@ -163,7 +163,7 @@ export function Modal({ open, onClose, title, width = 560, children, footer }: {
   if (!open) return null
   return createPortal(
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" />
+      <div className="pointer-events-none absolute inset-0 bg-black/35" />
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative bg-white rounded-2xl shadow-2xl w-full anim-in flex flex-col max-h-[88vh]" style={{ maxWidth: width }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
           <h3 id={titleId} className="font-bold text-[16px]">{title}</h3>

@@ -63,6 +63,21 @@ test('切换检查项不要求回答，且上一步箭头没有旋转样式', as
   expect(screen.getByRole('link', { name: '下一步：梳理方案' })).toBeTruthy()
 })
 
+test('取消记录证据或添加资料时立即卸载弹窗', async () => {
+  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={['/project/project/stage/stage/step/step']}><Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes></MemoryRouter>)
+
+  await user.click(await screen.findByRole('button', { name: '记录' }))
+  expect(screen.getByRole('dialog', { name: '记录证据（Evidence）' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: '取消' }))
+  expect(screen.queryByRole('dialog', { name: '记录证据（Evidence）' })).toBeNull()
+
+  await user.click(screen.getByRole('button', { name: '添加' }))
+  expect(screen.getByRole('dialog', { name: '添加资料（Artifacts）' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: '取消' }))
+  expect(screen.queryByRole('dialog', { name: '添加资料（Artifacts）' })).toBeNull()
+})
+
 test('旧保存完成时不会覆盖同一 Step 的最新保存状态', async () => {
   const firstSave = deferred<void>()
   vi.mocked(window.api.stepSave).mockImplementationOnce(() => firstSave.promise).mockResolvedValue(undefined)
