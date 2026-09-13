@@ -92,6 +92,7 @@ export function validateBackupData(value: unknown): asserts value is AppData {
   for (const artifact of value.artifacts as Record<string, unknown>[]) {
     strings(artifact, 'id projectId stageId title sourceType extractedContent createdAt')
     check(typeof artifact.hasContent === 'boolean')
+    if (artifact.sourceType === 'file') check(typeof artifact.filePath === 'string' && artifact.filePath.trim().length > 0)
     if (artifact.filePath !== undefined) check(typeof artifact.filePath === 'string' && artifact.filePath.length > 0)
   }
 }

@@ -96,6 +96,23 @@ test.each(['meta', 'futureVersion', 'nestedArray', 'missingArtifact', 'missingAr
   expect(hashes(live)).toEqual(original)
 })
 
+test.each([undefined, '', '   '])('rejects a file artifact with missing or blank filePath (%s) before touching live data', (filePath) => {
+  const original = hashes(live)
+  const invalid = readData(candidate)
+  invalid.artifacts[0].filePath = filePath
+  fs.writeFileSync(path.join(candidate, 'data.json'), JSON.stringify(invalid))
+  const flushCurrent = vi.fn()
+  const replaceLoaded = vi.fn()
+  const result = restoreFullBackup(live, candidate, { flushCurrent, replaceLoaded })
+  expect(result.error).toBeTruthy()
+  expect(result.restored).toBeUndefined()
+  expect(result.safetyBackupPath).toBeUndefined()
+  expect(flushCurrent).not.toHaveBeenCalled()
+  expect(replaceLoaded).not.toHaveBeenCalled()
+  expect(hashes(live)).toEqual(original)
+  expect(fs.existsSync(path.join(root, 'backups'))).toBe(false)
+})
+
 test('restores migrated data, rebases old-machine file paths and preserves safety backup and ancillary files', () => {
   const original = hashes(live)
   const value = readData(candidate)
