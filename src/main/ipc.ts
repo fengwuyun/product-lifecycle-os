@@ -1,6 +1,7 @@
 import { app, ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import type { Api, Settings, Priority, ProjectStatus, DecisionType, PlaybookStageDef } from '../shared/types'
-import { getDB, saveDB, loadDB, flushDB, resetDB, dataDir } from './store'
+import { getDB, saveDB, loadDB, flushDB, resetDB, dataDir, replaceLoadedDB } from './store'
+import { createFullBackup, restoreFullBackup } from './services/backup'
 import * as projects from './services/projects'
 import * as artifacts from './services/artifacts'
 import * as ai from './services/ai'
@@ -8,6 +9,11 @@ import { exportReport } from './services/report'
 
 // 统一的 IPC 注册：channel 名与 preload 桥一一对应
 export function registerIPC(getMainWindow: () => BrowserWindow | null): void {
+  let pendingDataWrites = 0
+  const trackDataWrite = async <R>(operation: () => Promise<R>): Promise<R> => {
+    pendingDataWrites += 1
+    try { return await operation() } finally { pendingDataWrites -= 1 }
+  }
   const wrap = <A, R>(fn: (args: A) => R | Promise<R>) =>
     async (_e: Electron.IpcMainInvokeEvent, args: A): Promise<{ ok: true; data: R } | { ok: false; error: string }> => {
       try {
@@ -49,11 +55,11 @@ export function registerIPC(getMainWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('artifact:addFromText', wrap((p: Parameters<typeof artifacts.addTextArtifact>[0]) => artifacts.addTextArtifact(p)))
   ipcMain.handle('artifact:addFromFile', wrap((p: { projectId: string; stageId: string; title: string; notes?: string; path: string }) =>
-    artifacts.parseAndStoreFile({ projectId: p.projectId, stageId: p.stageId, title: p.title, notes: p.notes, filePath: p.path })))
+    trackDataWrite(() => artifacts.parseAndStoreFile({ projectId: p.projectId, stageId: p.stageId, title: p.title, notes: p.notes, filePath: p.path }))))
   ipcMain.handle('artifact:getContent', wrap((p: { id: string }) => artifacts.getArtifactContent(p)))
   ipcMain.handle('artifact:delete', wrap((p: { id: string }) => artifacts.deleteArtifact(p)))
 
-  ipcMain.handle('ai:reviewStage', wrap((p: { projectId: string; stageId: string }) => ai.reviewStage(p)))
+  ipcMain.handle('ai:reviewStage', wrap((p: { projectId: string; stageId: string }) => trackDataWrite(() => ai.reviewStage(p))))
   ipcMain.handle('ai:projectSummary', wrap((p: { projectId: string }) => ai.projectSummary(p)))
   ipcMain.handle('ai:stepAssist', wrap((p: { projectId: string; stageId: string; stepId: string }) => ai.stepAssist(p)))
   ipcMain.handle('ai:testConnection', wrap0(() => ai.testConnection()))
@@ -79,6 +85,27 @@ export function registerIPC(getMainWindow: () => BrowserWindow | null): void {
     db.settings = p.settings
     saveDB()
   }))
+
+  let backupBusy = false
+  const backupOperation = async (restore: boolean): Promise<Awaited<ReturnType<Api['backupRestore']>> & Awaited<ReturnType<Api['backupCreate']>>> => {
+    if (backupBusy) return { error: '备份或恢复正在进行，请稍候' }
+    if (restore && pendingDataWrites) return { error: '资料导入或 AI 审查正在进行，请等待完成后再恢复备份' }
+    backupBusy = true
+    try {
+      const options: Electron.OpenDialogOptions = { title: restore ? '选择包含 data.json 和 artifacts 的备份文件夹' : '选择完整备份的保存位置', properties: ['openDirectory', 'createDirectory'] }
+      const win = getMainWindow()
+      const selection = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (selection.canceled || !selection.filePaths[0]) return { canceled: true }
+      if (restore && pendingDataWrites) return { error: '资料导入或 AI 审查正在进行，请等待完成后再恢复备份' }
+      if (restore) return restoreFullBackup(dataDir(), selection.filePaths[0], { flushCurrent: () => flushDB(true), replaceLoaded: replaceLoadedDB })
+      flushDB(true)
+      return { path: createFullBackup(dataDir(), selection.filePaths[0]) }
+    } catch {
+      return { error: restore ? '恢复失败，请检查备份与目录权限' : '完整备份失败，请检查目录权限、磁盘空间及资料文件是否完整' }
+    } finally { backupBusy = false }
+  }
+  ipcMain.handle('backup:create', wrap0(() => backupOperation(false)))
+  ipcMain.handle('backup:restore', wrap0(() => backupOperation(true)))
 
   ipcMain.handle('app:openPath', wrap(async (p: { path: string }) => {
     await shell.openPath(p.path)

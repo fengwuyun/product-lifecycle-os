@@ -2,12 +2,23 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ChevronRight, Target, Info, CheckSquare, Square, Sparkles,
-  FileText, Plus, CheckCircle2, CircleDot, ChevronDown
+  FileText, Plus, CheckCircle2, CircleDot
 } from 'lucide-react'
 import { useApp, fmtDate } from '../store/app'
 import { Button, Card, Badge, StrengthBadge, EmptyState } from '../components/ui'
 import { EvidenceModal, ArtifactModal, ArtifactViewer } from '../components/modals'
 import type { ProjectStep } from '@shared/types'
+
+type PendingStepSave = {
+  revision: number
+  stepKey: string
+  request: {
+    projectId: string
+    stageId: string
+    stepId: string
+    patch: { checklist: ProjectStep['checklist']; answers: ProjectStep['answers'] }
+  }
+}
 
 export function StepPage() {
   const { projectId, stageId, stepId } = useParams()
@@ -19,29 +30,66 @@ export function StepPage() {
   const [viewArtifact, setViewArtifact] = useState<string | null>(null)
   const [assist, setAssist] = useState('')
   const [assistBusy, setAssistBusy] = useState(false)
-  const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   // 本地草稿状态（输入即时响应，失焦/切换时保存）
   const [draft, setDraft] = useState<ProjectStep | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSaveRef = useRef<PendingStepSave | null>(null)
+  const saveRevisionRef = useRef(0)
+  const currentStepKey = `${projectId ?? ''}:${stageId ?? ''}:${stepId ?? ''}`
+  const currentStepKeyRef = useRef(currentStepKey)
   const savedAtRef = useRef<string>('')
+  currentStepKeyRef.current = currentStepKey
+
+  const writeSave = async (pending: PendingStepSave) => {
+    try {
+      await window.api.stepSave(pending.request)
+      await load()
+      if (saveRevisionRef.current === pending.revision && currentStepKeyRef.current === pending.stepKey) setSaveState('saved')
+    } catch (err) {
+      if (saveRevisionRef.current === pending.revision && currentStepKeyRef.current === pending.stepKey) {
+        setSaveState('error')
+        toast((err as Error).message, 'bad')
+      }
+    }
+  }
+
+  const flushPendingSave = async () => {
+    const pending = pendingSaveRef.current
+    if (!pending) return
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    pendingSaveRef.current = null
+    await writeSave(pending)
+  }
+
+  useEffect(() => {
+    saveRevisionRef.current += 1
+    setSaveState('idle')
+    return () => {
+      void flushPendingSave()
+    }
+  }, [currentStepKey])
 
   useEffect(() => {
     if (!data) return
     const project = data.projects.find((p) => p.id === projectId)
     const stage = project?.workflowSnapshot.stages.find((s) => s.id === stageId)
     const step = stage?.steps.find((s) => s.id === stepId)
-    if (step && step.id !== savedAtRef.current) {
-      savedAtRef.current = step.id
+    if (step && currentStepKey !== savedAtRef.current) {
+      savedAtRef.current = currentStepKey
       setDraft(JSON.parse(JSON.stringify(step)))
     }
-  }, [data, projectId, stageId, stepId])
+  }, [data, currentStepKey, projectId, stageId, stepId])
 
   if (!data || !draft) return <div className="p-10 text-center text-ink-3 text-[13px]">加载中…</div>
   const project = data.projects.find((p) => p.id === projectId)
-  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回</Button>} />
+  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回项目组合</Button>} />
   const stage = project.workflowSnapshot.stages.find((s) => s.id === stageId)
-  if (!stage) return <EmptyState icon={<span>?</span>} title="阶段不存在" action={<Button onClick={() => navigate(`/project/${project.id}`)}>返回</Button>} />
+  if (!stage) return <EmptyState icon={<span>?</span>} title="阶段不存在" action={<Button onClick={() => navigate(`/project/${project.id}`)}>返回项目流程</Button>} />
 
   const stepIndex = stage.steps.findIndex((s) => s.id === stepId)
   const claims = data.claims.filter((c) => c.projectId === project.id && c.stageId === stage.id)
@@ -50,32 +98,27 @@ export function StepPage() {
 
   const persist = (checklist: ProjectStep['checklist'], answers: ProjectStep['answers']) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(async () => {
-      try {
-        await window.api.stepSave({
-          projectId: project.id, stageId: stage.id, stepId: stepId!,
-          patch: { checklist, answers }
-        })
-        await load()
-      } catch (err) { toast((err as Error).message, 'bad') }
+    const pending: PendingStepSave = {
+      revision: ++saveRevisionRef.current,
+      stepKey: currentStepKey,
+      request: {
+        projectId: project.id,
+        stageId: stage.id,
+        stepId: stepId!,
+        patch: { checklist, answers }
+      }
+    }
+    pendingSaveRef.current = pending
+    setSaveState('saving')
+    saveTimer.current = setTimeout(() => {
+      void flushPendingSave()
     }, 450)
   }
 
   const toggleCheck = (cid: string) => {
     const current = draft.checklist.find((c) => c.id === cid)
     if (!current) return
-    if (!current.done && current.responseRequired && !current.response?.trim()) {
-      setExpandedResponseId(cid)
-      toast('请先填写完成说明，再勾选此项', 'bad')
-      return
-    }
     const checklist = draft.checklist.map((c) => (c.id === cid ? { ...c, done: !c.done } : c))
-    setDraft({ ...draft, checklist })
-    persist(checklist, draft.answers)
-  }
-
-  const setChecklistResponse = (cid: string, value: string) => {
-    const checklist = draft.checklist.map((c) => (c.id === cid ? { ...c, response: value } : c))
     setDraft({ ...draft, checklist })
     persist(checklist, draft.answers)
   }
@@ -88,21 +131,17 @@ export function StepPage() {
 
   const complete = async () => {
     const willComplete = draft.status !== 'done'
-    const invalid = willComplete && draft.checklist.find((c) => c.done && c.responseRequired && !c.response?.trim())
-    if (invalid) {
-      setExpandedResponseId(invalid.id)
-      toast(`请先填写「${invalid.text}」的完成说明`, 'bad')
-      return
-    }
     try {
       // 先落盘草稿再标记完成
+      await flushPendingSave()
       await window.api.stepSave({
         projectId: project.id, stageId: stage.id, stepId: stepId!,
         patch: { checklist: draft.checklist, answers: draft.answers }
       })
       await window.api.stepComplete({ projectId: project.id, stageId: stage.id, stepId: stepId!, completed: willComplete })
+      savedAtRef.current = ''
       await load()
-      toast(willComplete ? 'Step 已完成' : '已重新打开', 'ok')
+      toast(willComplete ? '执行步骤（Steps）已完成' : '已重新打开', 'ok')
       if (willComplete) {
         const next = stage.steps[stepIndex + 1]
         if (next) navigate(`/project/${project.id}/stage/${stage.id}/step/${next.id}`)
@@ -129,7 +168,7 @@ export function StepPage() {
     <div className="p-7 max-w-[860px] mx-auto pb-16">
       {/* 面包屑 */}
       <div className="flex items-center gap-1.5 text-[12.5px] text-ink-3 mb-4 flex-wrap">
-        <Link to="/" className="hover:text-primary">Portfolio</Link>
+        <Link to="/" className="hover:text-primary">项目组合</Link>
         <ChevronRight size={13} />
         <Link to={`/project/${project.id}`} className="hover:text-primary">{project.name}</Link>
         <ChevronRight size={13} />
@@ -143,7 +182,7 @@ export function StepPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-[21px] font-bold tracking-tight">
-              <span className="text-ink-3 mr-2">Step {stepIndex + 1}</span>{draft.name}
+              <span className="text-ink-3 mr-2">执行步骤（Steps）{stepIndex + 1}</span>{draft.name}
             </h1>
             {isDone && <Badge tone="ok">已完成</Badge>}
           </div>
@@ -152,7 +191,7 @@ export function StepPage() {
           </div>
         </div>
         <Button variant={isDone ? 'default' : 'primary'} size="lg" onClick={complete}>
-          <CheckCircle2 size={15} /> {isDone ? '重新打开' : '完成 Step'}
+          <CheckCircle2 size={15} /> {isDone ? '重新打开' : '完成执行步骤（Steps）'}
         </Button>
       </div>
 
@@ -173,70 +212,54 @@ export function StepPage() {
           </h2>
         </div>
       </div>
-      <Card className="p-4 mb-6">
+      <Card className="p-4 mb-6" data-testid="checklist-card">
         <div className="space-y-2.5">
           {draft.checklist.map((c) => {
-            const responseOpen = expandedResponseId === c.id
             return (
-              <div key={c.id} className={`rounded-[10px] border transition-colors ${responseOpen ? 'border-primary-line bg-primary-soft/20' : 'border-transparent'}`}>
+              <div key={c.id} className="rounded-[10px] border border-transparent transition-colors">
                 <div className="flex items-center gap-3 px-2 py-1.5 text-[13.5px] group">
                   <button type="button" aria-label={c.done ? `取消完成 ${c.text}` : `完成 ${c.text}`} onClick={() => toggleCheck(c.id)}>
                     {c.done ? <CheckSquare size={17} className="text-ok flex-shrink-0" /> : <Square size={17} className="text-line-2 group-hover:text-primary flex-shrink-0" />}
                   </button>
-                  <button type="button" className="flex-1 min-w-0 text-left" onClick={() => c.responseRequired ? setExpandedResponseId(responseOpen ? null : c.id) : toggleCheck(c.id)}>
+                  <button type="button" className="flex-1 min-w-0 text-left" onClick={() => toggleCheck(c.id)}>
                     <span className={c.done ? 'line-through text-ink-3' : ''}>{c.text}</span>
                   </button>
-                  {c.responseRequired && (
-                    <button type="button" onClick={() => setExpandedResponseId(responseOpen ? null : c.id)} className={`flex items-center gap-1 text-[11.5px] ${c.response?.trim() ? 'text-ok' : 'text-primary'}`}>
-                      {c.response?.trim() ? '已填写' : '填写完成说明'}
-                      <ChevronDown size={13} className={`transition-transform ${responseOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                  )}
                 </div>
-                {c.responseRequired && responseOpen && (
-                  <div className="px-2 pb-2.5 pl-9">
-                    <div className="text-[11.5px] text-ink-3 mb-1.5">{c.responsePrompt || '请填写该检查项的完成说明或实际结果。'}</div>
-                    <textarea
-                      rows={3}
-                      autoFocus
-                      value={c.response || ''}
-                      onChange={(e) => setChecklistResponse(c.id, e.target.value)}
-                      placeholder="填写实际完成结果、判断依据或可追溯的记录……"
-                    />
-                  </div>
-                )}
               </div>
             )
           })}
         </div>
-      </Card>
-
-      {/* 需要回答的问题 */}
-      {draft.questions.length > 0 && (
-        <>
-          <h2 className="font-bold text-[15.5px] flex items-center gap-2 mb-2.5">
-            <CircleDot size={15} className="text-primary" /> 需要回答的问题
-            <span className="text-[12px] font-normal text-ink-3">回答会自动保存，并汇入阶段成果</span>
-          </h2>
-          <div className="space-y-3 mb-6">
+        {draft.questions.length > 0 && (
+          <div className="border-t border-line mt-4 pt-4">
+            <div className="font-bold text-[15.5px] flex items-center gap-2 mb-3">
+              <CircleDot size={15} className="text-primary" /> 需要回答的问题
+              <span className="text-[12px] font-normal text-ink-3">回答会自动保存，并汇入阶段成果</span>
+              {saveState !== 'idle' && (
+                <span role="status" className={saveState === 'error' ? 'text-bad text-[12px] font-normal' : 'text-ink-3 text-[12px] font-normal'}>
+                  {saveState === 'saving' ? '保存中…' : saveState === 'saved' ? '已保存' : '保存失败'}
+                </span>
+              )}
+            </div>
+            <div className="space-y-3">
             {draft.questions.map((q) => (
-              <Card key={q.id} className="p-4">
+              <div key={q.id} className="rounded-[10px] bg-[#faf9f6] p-3.5">
                 <div className="text-[13.5px] font-semibold mb-1">{q.q}</div>
                 {q.hint && <div className="text-[12px] text-ink-3 mb-2.5">{q.hint}</div>}
                 <textarea rows={3} value={draft.answers[q.id] || ''} onChange={(e) => setAnswer(q.id, e.target.value)}
                   placeholder="基于真实观察回答，不要臆测……" />
-              </Card>
+              </div>
             ))}
+            </div>
           </div>
-        </>
-      )}
+        )}
+      </Card>
 
       {/* AI 辅助 */}
       <Card className="p-4 mb-6 bg-gradient-to-r from-primary-soft/40 to-white border-primary-line">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="font-semibold text-[14px] flex items-center gap-1.5"><Sparkles size={14} className="text-primary" /> AI 执行辅助</div>
-            <div className="text-[12px] text-ink-3 mt-0.5">卡住了？让 AI 解释这个 Step 为什么重要、给出回答思路（AI 不会替你编造事实）</div>
+            <div className="text-[12px] text-ink-3 mt-0.5">卡住了？让 AI 解释这个执行步骤（Steps）为什么重要、给出回答思路（AI 不会替你编造事实）</div>
           </div>
           <Button variant="soft" loading={assistBusy} onClick={runAssist}><Sparkles size={14} /> 获取建议</Button>
         </div>
@@ -245,15 +268,15 @@ export function StepPage() {
         )}
       </Card>
 
-      {/* Evidence / Artifact 快捷入口 */}
+      {/* 证据（Evidence）/ 资料（Artifacts）快捷入口 */}
       <div className="grid md:grid-cols-2 gap-3 mb-6">
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="font-semibold text-[13.5px]">本阶段 Evidence（{evidences.length}）</div>
+            <div className="font-semibold text-[13.5px]">本阶段证据（Evidence，{evidences.length}）</div>
             <Button size="sm" variant="ghost" onClick={() => setEvOpen(true)}><Plus size={13} /> 记录</Button>
           </div>
           {evidences.length === 0 ? (
-            <div className="text-[12px] text-ink-3">这一步发现的任何真实事实，都值得记录为证据</div>
+            <div className="text-[12px] text-ink-3">暂无本阶段证据（Evidence）。这一步发现的任何真实事实，都值得记录下来。</div>
           ) : (
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
               {evidences.map((e) => (
@@ -267,11 +290,11 @@ export function StepPage() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="font-semibold text-[13.5px]">本阶段 Artifact（{artifacts.length}）</div>
+            <div className="font-semibold text-[13.5px]">本阶段资料（Artifacts，{artifacts.length}）</div>
             <Button size="sm" variant="ghost" onClick={() => setArtOpen(true)}><Plus size={13} /> 添加</Button>
           </div>
           {artifacts.length === 0 ? (
-            <div className="text-[12px] text-ink-3">访谈记录、竞品截图、数据表格……作为资料保存并自动解析</div>
+            <div className="text-[12px] text-ink-3">暂无本阶段资料（Artifacts）。访谈记录、竞品截图、数据表格都可保存并自动解析。</div>
           ) : (
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
               {artifacts.map((a) => (
@@ -290,12 +313,12 @@ export function StepPage() {
       {/* 上一步 / 下一步 */}
       <div className="flex items-center justify-between">
         {prevStep ? (
-          <Link to={`/project/${project.id}/stage/${stage.id}/step/${prevStep.id}`}>
-            <Button variant="ghost"><ArrowLeft size={14} className="rotate-180" style={{ marginRight: 4 }} /> {prevStep.name}</Button>
+          <Link to={`/project/${project.id}/stage/${stage.id}/step/${prevStep.id}`} aria-label={`上一步：${prevStep.name}`}>
+            <Button variant="ghost"><ArrowLeft size={14} style={{ marginRight: 4 }} /> {prevStep.name}</Button>
           </Link>
         ) : <span />}
         {nextStep ? (
-          <Link to={`/project/${project.id}/stage/${stage.id}/step/${nextStep.id}`}>
+          <Link to={`/project/${project.id}/stage/${stage.id}/step/${nextStep.id}`} aria-label={`下一步：${nextStep.name}`}>
             <Button variant="ghost">{nextStep.name} <ChevronRight size={14} /></Button>
           </Link>
         ) : (
@@ -305,8 +328,8 @@ export function StepPage() {
         )}
       </div>
 
-      <EvidenceModal open={evOpen} onClose={() => setEvOpen(false)} project={project} stage={stage} claims={claims} onAdded={load} />
-      <ArtifactModal open={artOpen} onClose={() => setArtOpen(false)} project={project} stage={stage} onAdded={load} />
+      {evOpen && <EvidenceModal open onClose={() => setEvOpen(false)} project={project} stage={stage} claims={claims} onAdded={load} />}
+      {artOpen && <ArtifactModal open onClose={() => setArtOpen(false)} project={project} stage={stage} onAdded={load} />}
       <ArtifactViewer open={!!viewArtifact} onClose={() => setViewArtifact(null)} artifactId={viewArtifact} />
     </div>
   )

@@ -257,16 +257,6 @@ export function PlaybookPage() {
                                 onChange={(e) => editStage({ steps: stage.steps.map((x, j) => (j === si ? { ...x, questions: e.target.value.split('\n').filter((t) => t.trim()).map((t, k) => ({ id: step.questions[k]?.id || tmpId('q'), q: t })) } : x)) })} />
                             </Field>
                           </div>
-                          {step.checklist.length > 0 && <div className="mt-3 rounded-[9px] border border-line bg-[#faf9f6] p-3">
-                            <div className="text-[12px] font-semibold mb-2">检查项完成说明</div>
-                            <div className="space-y-2">{step.checklist.map((item, ci) => <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
-                              <div className="min-w-0">
-                                <div className="text-[11.5px] text-ink-2 truncate mb-1">{item.text}</div>
-                                {item.responseRequired && <input type="text" value={item.responsePrompt || ''} placeholder="填写引导，例如：写明结果和判断依据" onChange={(e) => editStage({ steps: stage.steps.map((x, j) => j === si ? { ...x, checklist: x.checklist.map((c, k) => k === ci ? { ...c, responsePrompt: e.target.value } : c) } : x) })} />}
-                              </div>
-                              <label className="flex items-center gap-1.5 text-[11.5px] text-ink-2 cursor-pointer"><input type="checkbox" checked={Boolean(item.responseRequired)} onChange={(e) => editStage({ steps: stage.steps.map((x, j) => j === si ? { ...x, checklist: x.checklist.map((c, k) => k === ci ? { ...c, responseRequired: e.target.checked, responsePrompt: e.target.checked ? (c.responsePrompt || '请填写该检查项的完成说明或实际结果。') : c.responsePrompt } : c) } : x) })} /> 需要说明</label>
-                            </div>)}</div>
-                          </div>}
                         </div>
                       )}
                     </div>

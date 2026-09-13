@@ -24,26 +24,18 @@ export function PipelinePage() {
   const { data, toast } = useApp()
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [withSummary, setWithSummary] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   if (!data) return null
   const project = data.projects.find((p) => p.id === projectId)
-  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回 Portfolio</Button>} />
+  if (!project) return <EmptyState icon={<span>?</span>} title="项目不存在" action={<Button onClick={() => navigate('/')}>返回项目组合</Button>} />
 
   const prog = projectProgress(project)
   const stages = [...project.workflowSnapshot.stages].sort((a, b) => a.order - b.order)
   const decisions = data.decisions.filter((d) => d.projectId === project.id)
   const gate = stages.find((s) => s.id === project.currentStageId) ? stageGate(project, stages.find((s) => s.id === project.currentStageId)!, data.evidences) : null
-
-  const exportReport = async () => {
-    setExporting(true)
-    try {
-      const r = await window.api.reportExport({ projectId: project.id, withAiSummary: withSummary })
-      if (r.canceled) return
-      if (r.error) toast(r.error, 'bad')
-      else if (r.path) toast('报告已导出：' + r.path.split(/[\\/]/).pop(), 'ok')
-    } catch (err) { toast((err as Error).message, 'bad') } finally { setExporting(false) }
-  }
+  const aiSettings = data.settings?.ai
+  const aiConfigured = Boolean(aiSettings?.baseUrl?.trim() && aiSettings?.apiKey?.trim() && aiSettings?.model?.trim())
 
   return (
     <div className="p-7 max-w-[1000px] mx-auto pb-16">
@@ -63,7 +55,7 @@ export function PipelinePage() {
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setTimelineOpen(true)}><History size={15} /> 决策记录</Button>
-          <Button variant="primary" loading={exporting} onClick={() => setWithSummary(true)}><FileDown size={15} /> 导出报告</Button>
+          <Button variant="primary" loading={exporting} onClick={() => setExportOpen(true)}><FileDown size={15} /> 导出报告</Button>
         </div>
       </div>
 
@@ -72,7 +64,7 @@ export function PipelinePage() {
         <div className="flex items-center gap-4">
           <div className="text-[12.5px] text-ink-3 whitespace-nowrap">整体进度</div>
           <ProgressBar value={prog.total ? (prog.done / prog.total) * 100 : 0} className="flex-1" />
-          <div className="text-[12.5px] font-semibold tabular-nums">{prog.done}/{prog.total} Steps</div>
+          <div className="text-[12.5px] font-semibold tabular-nums">{prog.done}/{prog.total} 执行步骤（Steps）</div>
           {gate && !gate.ready && (
             <Badge tone="warn" className="ml-2">Gate：还差 {gate.missing.length} 项</Badge>
           )}
@@ -87,7 +79,7 @@ export function PipelinePage() {
       </div>
 
       {/* 决策 Timeline 弹窗 */}
-      <Modal open={timelineOpen} onClose={() => setTimelineOpen(false)} title="Decision Timeline · 决策记录" width={620}>
+      <Modal open={timelineOpen} onClose={() => setTimelineOpen(false)} title="决策记录" width={620}>
         {decisions.length === 0 ? <div className="text-ink-3 text-[13px] py-6 text-center">暂无决策记录</div> : (
           <div className="border-l-2 border-line ml-2 pl-5 space-y-5 py-1">
             {decisions.map((d) => {
@@ -108,8 +100,8 @@ export function PipelinePage() {
       </Modal>
 
       {/* 导出报告弹窗 */}
-      <ExportModal open={withSummary} onClose={() => setWithSummary(false)} onConfirm={async (ai) => {
-        setWithSummary(false)
+      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} aiConfigured={aiConfigured} onConfirm={async (ai) => {
+        setExportOpen(false)
         setExporting(true)
         try {
           const r = await window.api.reportExport({ projectId: project.id, withAiSummary: ai })
@@ -121,18 +113,19 @@ export function PipelinePage() {
   )
 }
 
-function ExportModal({ open, onClose, onConfirm }: { open: boolean; onClose: () => void; onConfirm: (withAi: boolean) => void }) {
+function ExportModal({ open, onClose, aiConfigured, onConfirm }: { open: boolean; onClose: () => void; aiConfigured: boolean; onConfirm: (withAi: boolean) => void }) {
   return (
     <Modal open={open} onClose={onClose} title="导出项目报告" width={460}
       footer={<>
         <Button onClick={onClose}>取消</Button>
-        <Button variant="primary" onClick={() => onConfirm(true)}>生成并导出</Button>
+        <Button variant="soft" onClick={() => onConfirm(false)}>直接导出</Button>
+        <Button variant="primary" disabled={!aiConfigured} onClick={() => onConfirm(true)}>AI 总结并导出</Button>
       </>}>
       <div className="text-[13px] text-ink-2 leading-relaxed mb-4">
-        导出为<b>单文件 HTML</b>（双击即可查看），包含全部阶段执行情况、Claims &amp; Evidence、资料完整正文、AI Review 与 Decision Timeline。
+        导出为<b>单文件 HTML</b>（双击即可查看），包含全部阶段执行情况、假设（Claims）、证据（Evidence）、资料（Artifacts）完整正文、AI 审查与决策记录。
       </div>
       <div className="text-[13px] font-semibold mb-2">AI 项目总结</div>
-      <div className="text-[12.5px] text-ink-3 leading-relaxed">导出时可让 AI 通读全部阶段数据，生成项目总结（需要已在设置中配置 AI 服务）。</div>
+      <div className="text-[12.5px] text-ink-3 leading-relaxed">导出时可让 AI 通读全部阶段数据，生成项目总结。未完成设置时，仍可直接导出。</div>
     </Modal>
   )
 }

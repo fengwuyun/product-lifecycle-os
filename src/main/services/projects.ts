@@ -4,6 +4,7 @@ import type {
 } from '../../shared/types'
 import { getDB, saveDB, id, nowISO, flushDB } from '../store'
 import { DEMO_PROJECT } from '../defaultPlaybook'
+import { deleteManagedArtifactFiles } from './artifacts'
 
 // ─── 查询工具 ───
 
@@ -89,7 +90,7 @@ export function createProject(input: { name: string; description: string; priori
       name: s.name,
       goal: s.goal,
       description: s.description,
-      checklist: s.checklist.map((c) => ({ ...c, done: false, response: '' })),
+      checklist: s.checklist.map((c) => ({ id: c.id, text: c.text, done: false })),
       questions: s.questions.map((q) => ({ ...q })),
       answers: {},
       status: 'todo' as const
@@ -166,6 +167,10 @@ export function setProjectStatus(p: { id: string; status: ProjectStatus; reason?
 
 export function deleteProject(p: { id: string }): void {
   const db = getDB()
+  const projectArtifacts = db.artifacts.filter((artifact) => artifact.projectId === p.id)
+  // Delete copied files before dropping their metadata. The helper refuses paths outside
+  // the app artifact root, so an imported/original path can never be deleted here.
+  deleteManagedArtifactFiles(projectArtifacts)
   db.projects = db.projects.filter((x) => x.id !== p.id)
   db.claims = db.claims.filter((x) => x.projectId !== p.id)
   db.evidences = db.evidences.filter((x) => x.projectId !== p.id)
@@ -202,10 +207,6 @@ export function stepComplete(p: { projectId: string; stageId: string; stepId: st
   const stage = findStage(project, p.stageId)
   const step = stage.steps.find((s) => s.id === p.stepId)
   if (!step) throw new Error('Step 不存在')
-  if (p.completed) {
-    const invalid = step.checklist.find((c) => c.done && c.responseRequired && !c.response?.trim())
-    if (invalid) throw new Error(`请先填写「${invalid.text}」的完成说明`)
-  }
   step.status = p.completed ? 'done' : 'todo'
   step.completedAt = p.completed ? nowISO() : undefined
   if (p.completed && stage.status === 'active') {
@@ -365,7 +366,6 @@ export function createDemoProject(): { projectId: string } {
     s.completedAt = nowISO()
     for (const c of s.checklist) {
       c.done = true
-      if (c.responseRequired && !c.response) c.response = `已完成：${c.text}`
     }
   }
   const q = (sid: string, qid: string) => st1.steps.find((s) => s.id === sid)?.questions.find((x) => x.id === qid)?.q || ''
@@ -408,7 +408,6 @@ export function createDemoProject(): { projectId: string } {
   const s1 = st2.steps[0]
   for (const c of s1.checklist) {
     c.done = true
-    if (c.responseRequired && !c.response) c.response = `已完成：${c.text}`
   }
   s1.answers['q211'] = '访谈了 4 位小时工：2 位餐饮、1 位仓储、1 位展会。全部用备忘录/微信记录，3 位表示曾被少算工资但没凭据只能认了。'
   s1.answers['q212'] = '"多一天是一天，谁为了几十块钱去吵啊。"——仓储阿姨，但她说如果有个东西自动对账她天天用。'

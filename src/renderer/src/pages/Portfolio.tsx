@@ -6,11 +6,19 @@ import {
   List, LayoutGrid, MoreHorizontal, Trash2, ArrowRight, Target, Sparkles, FileDown
 } from 'lucide-react'
 import { useApp, projectProgress, nextAction, stageGate, fmtDate } from '../store/app'
-import { Button, Card, Badge, PriorityBadge, StatusBadge, StageDot, ProgressBar, EmptyState, Modal } from '../components/ui'
+import { Button, Card, Badge, PriorityBadge, StatusBadge, STATUS_LABEL, StageDot, ProgressBar, EmptyState, Modal } from '../components/ui'
 import { CreateProjectModal } from '../components/modals'
+import { useSidebarWorkspace } from '../store/sidebarWorkspace'
 import type { Project, Priority, ProjectStatus } from '@shared/types'
 
 const STAGE_SHORTS = ['机会', '验证', '竞品', '定义', 'MVP', '开发', '软启动', '市场验证']
+const normalizeSearch = (value: string) => value.normalize('NFKC').trim().toLocaleLowerCase()
+
+export function projectMatchesSearch(project: Project, query: string): boolean {
+  const currentStage = project.workflowSnapshot.stages.find((stage) => stage.id === project.currentStageId)
+  const searchable = [project.name, project.description, currentStage?.name, currentStage?.short, STATUS_LABEL[project.status]].filter(Boolean).join(' ')
+  return normalizeSearch(searchable).includes(normalizeSearch(query))
+}
 
 export function getMenuPosition(
   trigger: { top: number; bottom: number; right: number },
@@ -31,14 +39,18 @@ export function PortfolioPage() {
   const { data, portfolioView, setPortfolioView, toast, load } = useApp()
   const navigate = useNavigate()
   const [demoBusy, setDemoBusy] = useState(false)
+  const [query, setQuery] = useState('')
+  const workspace = useSidebarWorkspace()
 
   if (!data) return null
-  const projects = [...data.projects].sort((a, b) => {
+  const sortedProjects = [...data.projects].sort((a, b) => {
     const pr = (p: Project) => (p.priority === 'P1' ? 0 : p.priority === 'P2' ? 1 : 2)
     const order: Record<ProjectStatus, number> = { active: 0, waiting: 1, paused: 2, completed: 3, abandoned: 4 }
     return pr(a) - pr(b) || order[a.status] - order[b.status]
   })
-  const focus = projects.find((p) => p.priority === 'P1' && (p.status === 'active' || p.status === 'waiting'))
+  const projects = query ? sortedProjects.filter((project) => projectMatchesSearch(project, query)) : sortedProjects
+  const recentProjects = workspace.recentProjectIds.map((id) => data.projects.find((project) => project.id === id)).filter((project): project is Project => Boolean(project)).slice(0, 5)
+  const focus = sortedProjects.find((p) => p.priority === 'P1' && (p.status === 'active' || p.status === 'waiting'))
   const evidences = data.evidences
 
   const createDemo = async () => {
@@ -56,7 +68,7 @@ export function PortfolioPage() {
       {/* 页头 */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[21px] font-bold tracking-tight">Portfolio</h1>
+          <h1 className="text-[21px] font-bold tracking-tight">项目组合</h1>
           <p className="text-[13px] text-ink-3 mt-0.5">多项目总览 —— 现在应该推进什么，一目了然</p>
         </div>
         <div className="flex items-center gap-1 bg-white border border-line rounded-[10px] p-1">
@@ -73,7 +85,7 @@ export function PortfolioPage() {
       {focus && <FocusCard project={focus} nextStep={nextAction(focus)} />}
 
       {/* 项目列表 / 阶段视图 */}
-      {projects.length === 0 ? (
+      {data.projects.length === 0 ? (
         <Card className="mt-4">
           <EmptyState
             icon={<FolderKanban size={26} />}
@@ -85,7 +97,13 @@ export function PortfolioPage() {
             </>}
           />
         </Card>
-      ) : portfolioView === 'list' ? (
+      ) : <>
+        <div className="mt-4">
+          <label className="block text-[12.5px] font-semibold text-ink-2 mb-1.5" htmlFor="portfolio-project-search">搜索项目</label>
+          <input id="portfolio-project-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按项目、描述、阶段或状态搜索" className="w-full h-9 rounded-[9px] border border-line bg-white px-3 text-[13px] outline-none placeholder:text-ink-3 focus:border-primary focus:ring-2 focus:ring-primary/15" />
+          {!query && recentProjects.length > 0 && <div className="mt-2 flex items-center gap-2 flex-wrap"><span className="text-[11.5px] text-ink-3">最近访问</span>{recentProjects.map((project) => <button key={project.id} type="button" onClick={() => navigate(`/project/${project.id}`)} className="rounded-full bg-primary-soft px-2.5 py-1 text-[11.5px] font-medium text-primary hover:bg-primary-line/60">{project.name}</button>)}</div>}
+        </div>
+        {projects.length === 0 ? <Card className="mt-4"><EmptyState icon={<FolderKanban size={26} />} title="未找到匹配项目" desc="请尝试调整搜索词，或清除搜索后查看全部项目。" action={<Button variant="soft" onClick={() => setQuery('')}>清除搜索</Button>} /></Card> : portfolioView === 'list' ? (
         <Card className="overflow-hidden mt-4">
           <table className="w-full text-[13.5px]">
             <thead>
@@ -160,7 +178,7 @@ export function PortfolioPage() {
             </tbody>
           </table>
         </Card>
-      )}
+      )}</>}
     </div>
   )
 }
@@ -295,7 +313,7 @@ function RowActions({ project }: { project: Project }) {
             toast('项目已删除', 'ok')
           }}>确认删除</Button>
         </>}>
-        <div className="text-[13.5px] leading-relaxed">确定删除项目「{project.name}」？该项目的全部 Claim、Evidence、资料、决策记录都会一并删除，此操作不可恢复。</div>
+        <div className="text-[13.5px] leading-relaxed">确定删除项目「{project.name}」？该项目的全部假设（Claims）、证据（Evidence）、资料（Artifacts）、决策记录都会一并删除，此操作不可恢复。</div>
       </Modal>
     </div>
   )

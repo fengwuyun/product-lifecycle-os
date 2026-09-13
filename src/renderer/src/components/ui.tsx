@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import type { EvidenceStrength, Priority, ProjectStatus } from '@shared/types'
 
@@ -10,7 +11,7 @@ export function Button({ variant = 'default', size = 'md', loading, className = 
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const base = 'inline-flex items-center justify-center gap-1.5 font-medium rounded-[9px] transition-all select-none disabled:opacity-50 disabled:pointer-events-none'
+  const base = 'inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 leading-none font-medium rounded-[9px] transition-all select-none disabled:opacity-50 disabled:pointer-events-none'
   const sizes = { sm: 'h-7 px-2.5 text-[12.5px]', md: 'h-9 px-3.5 text-[13.5px]', lg: 'h-10.5 px-5 text-[14.5px]' }
   const variants: Record<BtnVariant, string> = {
     primary: 'bg-primary text-white hover:bg-primary-deep shadow-sm shadow-primary/25 active:scale-[.98]',
@@ -116,25 +117,62 @@ export function Modal({ open, onClose, title, width = 560, children, footer }: {
   footer?: React.ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+  const wasOpenRef = useRef(false)
+  const onCloseRef = useRef(onClose)
+  const titleId = useId()
+
+  if (open && !wasOpenRef.current) {
+    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  }
+  wasOpenRef.current = open
+
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const getFocusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []).filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true')
+    const focusable = getFocusable()
+    focusable[0]?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const controls = getFocusable()
+      if (controls.length === 0) { e.preventDefault(); return }
+      const currentIndex = controls.indexOf(document.activeElement as HTMLElement)
+      if (e.shiftKey && currentIndex <= 0) {
+        e.preventDefault()
+        controls[controls.length - 1].focus()
+      } else if (!e.shiftKey && (currentIndex === -1 || currentIndex === controls.length - 1)) {
+        e.preventDefault()
+        controls[0].focus()
+      }
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      triggerRef.current?.focus()
+      triggerRef.current = null
+    }
+  }, [open])
   if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" />
-      <div ref={ref} className="relative bg-white rounded-2xl shadow-2xl w-full anim-in flex flex-col max-h-[88vh]" style={{ maxWidth: width }}>
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="pointer-events-none absolute inset-0 bg-black/35" />
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative bg-white rounded-2xl shadow-2xl w-full anim-in flex flex-col max-h-[88vh]" style={{ maxWidth: width }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
-          <h3 className="font-bold text-[16px]">{title}</h3>
-          <button className="text-ink-3 hover:text-ink p-1 rounded-md hover:bg-black/5" onClick={onClose}><X size={17} /></button>
+          <h3 id={titleId} className="font-bold text-[16px]">{title}</h3>
+          <button aria-label="关闭对话框" className="text-ink-3 hover:text-ink p-1 rounded-md hover:bg-black/5" onClick={onClose}><X size={17} /></button>
         </div>
         <div className="px-6 pb-5 overflow-y-auto flex-1">{children}</div>
         {footer && <div className="px-6 py-4 border-t border-line flex justify-end gap-2 bg-[#fbfaf8] rounded-b-2xl">{footer}</div>}
       </div>
-    </div>
+    </div>, document.body
   )
 }
 

@@ -92,18 +92,18 @@ export function EvidenceModal({ open, onClose, project, stage, claims, onAdded }
         content: content.trim(), sourceUrl: sourceUrl.trim() || undefined, notes: notes.trim() || undefined,
         relatedClaimIds: related
       })
-      toast('Evidence 已记录', 'ok')
+      toast('证据（Evidence）已记录', 'ok')
       onAdded()
       onClose()
     } catch (err) { toast((err as Error).message, 'bad') } finally { setBusy(false) }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="记录 Evidence（证据）" width={620}
+    <Modal open={open} onClose={onClose} title="记录证据（Evidence）" width={620}
       footer={<><Button onClick={onClose}>取消</Button><Button variant="primary" loading={busy} onClick={submit}>保存证据</Button></>}>
       <div className="bg-warn-soft/70 text-warn text-[12.5px] rounded-[9px] px-3.5 py-2.5 mb-4 leading-relaxed">
         <ShieldAlert size={13} className="inline mr-1 -mt-0.5" />
-        Evidence 必须来自真实世界（访谈、行为、数据、付款），不要把你的判断或行业常识记录为证据。
+        证据（Evidence）必须来自真实世界（访谈、行为、数据、付款），不要把你的判断或行业常识记录为证据。
       </div>
       <Field label="证据标题" required>
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：4 位受访者中 3 位有被少算工资的经历" autoFocus />
@@ -125,7 +125,7 @@ export function EvidenceModal({ open, onClose, project, stage, claims, onAdded }
         <input type="text" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://…" />
       </Field>
       {claims.length > 0 && (
-        <Field label="关联 Claim" hint="此证据支持哪些假设">
+        <Field label="关联假设（Claims）" hint="此证据（Evidence）支持哪些假设（Claims）">
           <div className="space-y-1.5">
             {claims.map((c) => (
               <label key={c.id} className="flex items-start gap-2.5 text-[13px] bg-[#faf9f6] border border-line rounded-[9px] px-3 py-2 cursor-pointer hover:border-line-2">
@@ -179,18 +179,18 @@ export function ArtifactModal({ open, onClose, project, stage, onAdded }: {
         if (!pickedPath) { toast('请先选择文件', 'bad'); return }
         const r = await window.api.artifactAddFromFile({ projectId: project.id, stageId: stage.id, title: title.trim(), notes: notes.trim() || undefined, path: pickedPath })
         if (r.error) { toast(r.error, 'bad'); return }
-        if (r.artifact) { toast('资料已保存并解析', 'ok'); onAdded(); onClose() }
+        if (r.artifact) { toast('资料（Artifacts）已保存并解析', 'ok'); onAdded(); onClose() }
       } else {
         if (!title.trim() || !content.trim()) { toast('请填写标题和正文', 'bad'); return }
         await window.api.artifactAddFromText({ projectId: project.id, stageId: stage.id, title: title.trim(), content, notes: notes.trim() || undefined })
-        toast('资料已保存', 'ok')
+        toast('资料（Artifacts）已保存', 'ok')
         onAdded(); onClose()
       }
     } catch (err) { toast((err as Error).message, 'bad') } finally { setBusy(false) }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="添加 Artifact（资料）" width={620}
+    <Modal open={open} onClose={onClose} title="添加资料（Artifacts）" width={620}
       footer={<><Button onClick={onClose}>取消</Button><Button variant="primary" loading={busy} onClick={submit}>保存资料</Button></>}>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('file')} className={`h-8.5 px-4 rounded-[9px] text-[13px] font-medium border transition-all flex items-center gap-1.5 ${mode === 'file' ? 'bg-primary-soft text-primary border-primary-line' : 'bg-white border-line-2 text-ink-2'}`}>
@@ -216,7 +216,7 @@ export function ArtifactModal({ open, onClose, project, stage, onAdded }: {
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：竞品分析报告" />
       </Field>
       <Field label="备注" hint="可选">
-        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="这份资料说明了什么？" />
+        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="这份资料（Artifacts）说明了什么？" />
       </Field>
     </Modal>
   )
@@ -262,12 +262,12 @@ export function DeliverableModal({ open, onClose, project, stage, deliverableId,
       <Field label="标题">
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
       </Field>
-      <Field label="成果内容" required hint="可从各 Step 的回答整合而来">
+      <Field label="成果内容" required hint="可从各执行步骤（Steps）的回答整合而来">
         <textarea rows={9} value={content} onChange={(e) => setContent(e.target.value)} placeholder="直接把成果写在这里（支持换行分段）……" />
       </Field>
-      <Field label="关联 Artifact" hint="把已有资料作为成果附件">
+      <Field label="关联资料（Artifacts）" hint="把已有资料（Artifacts）作为成果附件">
         {stageArtifacts.length === 0 ? (
-          <div className="text-[12.5px] text-ink-3">本阶段还没有资料，可先在「资料」区添加</div>
+          <div className="text-[12.5px] text-ink-3">本阶段还没有资料（Artifacts），可先在「资料（Artifacts）」区添加</div>
         ) : (
           <div className="space-y-1.5">
             {stageArtifacts.map((a) => (
@@ -385,16 +385,16 @@ export function ClaimInlineAdd({ projectId, stageId, onAdded }: { projectId: str
       await window.api.claimAdd({ projectId, stageId, statement: statement.trim() })
       setStatement('')
       onAdded()
-      toast('Claim 已添加', 'ok')
+      toast('假设（Claims）已添加', 'ok')
     } catch (err) { toast((err as Error).message, 'bad') } finally { setBusy(false) }
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col sm:flex-row gap-2">
       <input type="text" value={statement} onChange={(e) => setStatement(e.target.value)}
-        placeholder="提出一个可被证据支持或证伪的假设，例如：小时工愿意持续记录每天工时"
+        className="min-w-0" placeholder="提出一个可被证据（Evidence）支持或证伪的假设（Claims），例如：小时工愿意持续记录每天工时"
         onKeyDown={(e) => { if (e.key === 'Enter') add() }} />
-      <Button variant="soft" loading={busy} onClick={add}>添加</Button>
+      <Button className="self-start sm:self-auto" variant="soft" loading={busy} onClick={add}>添加</Button>
     </div>
   )
 }
@@ -417,7 +417,7 @@ export function ArtifactViewer({ open, onClose, artifactId }: { open: boolean; o
   const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].includes(ext)
 
   return (
-    <Modal open={open} onClose={onClose} title={artifact?.title || '资料详情'} width={760} footer={
+    <Modal open={open} onClose={onClose} title={artifact?.title || '资料（Artifacts）详情'} width={760} footer={
       artifact?.sourceType === 'file' && artifact?.filePath ? (
         <Button onClick={() => window.api.openPath({ path: artifact.filePath! }).catch((e) => toast((e as Error).message, 'bad'))}>
           <ExternalLink size={14} /> 打开原文件
@@ -425,7 +425,7 @@ export function ArtifactViewer({ open, onClose, artifactId }: { open: boolean; o
       ) : undefined
     }>
       {loading ? <div className="py-10 text-center text-ink-3 text-[13px]">加载中…</div> : !artifact ? (
-        <div className="py-10 text-center text-ink-3 text-[13px]">未找到资料</div>
+        <div className="py-10 text-center text-ink-3 text-[13px]">未找到资料（Artifacts）</div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 mb-4">

@@ -1,7 +1,7 @@
 {
   "name": "product-lifecycle-os",
   "productName": "Product Lifecycle OS",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "产品生命周期执行与决策工具",
   "main": "out/main/index.js",
   "author": "Product Lifecycle OS",

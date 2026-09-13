@@ -1,28 +1,129 @@
 import { expect, test } from 'vitest'
 import type { AppData } from '../shared/types'
 import { migrateData, DATA_VERSION } from './dataMigrations'
+import { buildDefaultPlaybook } from './defaultPlaybook'
 
-test('旧数据迁移会补充必答检查项，同时保留完成状态和已有回答', () => {
-  const checklist = [{ id: 'c121', text: '完成一句话产品机会描述', done: true, response: '已有内容' }]
-  const stage = { id: 'stage', name: '', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [], steps: [{ id: 'step', name: '', goal: '', description: '', checklist, questions: [], answers: {}, status: 'done' as const }], deliverables: [], exitCriteria: [], minEvidence: 0, status: 'active' as const }
-  const data = {
-    meta: { version: 1, createdAt: '' }, settings: { ai: { baseUrl: '', apiKey: '', model: '' } },
-    playbooks: [{ id: 'pb', name: '', version: 1, description: '', stages: [{ ...stage, steps: [{ ...stage.steps[0], checklist: [{ id: 'c121', text: '完成一句话产品机会描述' }] }] }], history: [], createdAt: '', updatedAt: '' }],
+type LegacyItem = {
+  id: string
+  text: string
+  done: boolean
+  responseRequired?: boolean
+  responsePrompt?: string
+  response?: string
+}
+
+function legacyData(version: number, checklist: LegacyItem[], answers: Record<string, string> = {}, questions: { id: string; q: string }[] = []): AppData {
+  const step = { id: 'step', name: '', goal: '', description: '', checklist, questions, answers, status: 'done' as const }
+  const stage = { id: 'stage', name: '', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [], steps: [step], deliverables: [], exitCriteria: [], minEvidence: 0, status: 'active' as const }
+  return {
+    meta: { version, createdAt: '' }, settings: { ai: { baseUrl: '', apiKey: '', model: '' } }, playbooks: [],
     projects: [{ id: 'project', name: '', description: '', priority: 'P1', status: 'active', playbookId: 'pb', playbookVersion: 1, workflowSnapshot: { playbookId: 'pb', playbookVersion: 1, stages: [stage] }, currentStageId: 'stage', createdAt: '', updatedAt: '', lastActiveAt: '' }],
     claims: [], evidences: [], artifacts: [], decisions: [], aiReviews: []
-  } as AppData
+  } as unknown as AppData
+}
 
-  const result = migrateData(data)
-  const migrated = result.data.projects[0].workflowSnapshot.stages[0].steps[0].checklist[0]
+function migratedStep(data: AppData) {
+  return data.projects[0].workflowSnapshot.stages[0].steps[0]
+}
+
+function legacyPlaybookData(version: number): AppData {
+  const data = legacyData(version, [])
+  data.playbooks = [{
+    id: 'pb', name: '', version: 1, description: '', history: [], createdAt: '', updatedAt: '', stages: [{
+      id: 'stage', name: '', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [],
+      steps: [{ id: 'step', name: '', goal: '', description: '', checklist: [{ id: 'c121', text: '机会描述', responseRequired: true, responsePrompt: '旧引导' }], questions: [] }],
+      deliverables: [], exitCriteria: [], minEvidence: 0
+    }]
+  }] as unknown as AppData['playbooks']
+  return data
+}
+
+test.each([1, 2, 3])('v%s data migrates directly to current compatibility questions', (version) => {
+  const result = migrateData(legacyData(version, [{ id: 'c121', text: '完成一句话产品机会描述', done: true, responseRequired: true, responsePrompt: '一句话机会', response: '已有内容' }]))
+  const step = migratedStep(result.data)
+
   expect(result.changed).toBe(true)
   expect(result.data.meta.version).toBe(DATA_VERSION)
-  expect(migrated).toMatchObject({ done: true, response: '已有内容', responseRequired: true })
-  expect(migrated.responsePrompt).toContain('一句话')
+  expect(step.questions).toEqual([{ id: 'legacy_question_c121', q: '一句话机会' }])
+  expect(step.answers).toEqual({ legacy_question_c121: '已有内容' })
+  expect(step.checklist).toEqual([{ id: 'c121', text: '完成一句话产品机会描述', done: true }])
 })
 
-test('自定义检查项默认不强制填写说明', () => {
-  const custom = { id: 'custom-check', text: '自定义动作', done: false }
-  const stage = { id: 'stage', name: '', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [], todos: [], steps: [{ id: 'step', name: '', goal: '', description: '', checklist: [custom], questions: [], answers: {}, status: 'todo' as const }], deliverables: [], exitCriteria: [], minEvidence: 0, status: 'active' as const }
-  const data = { meta: { version: 1, createdAt: '' }, settings: { ai: { baseUrl: '', apiKey: '', model: '' } }, playbooks: [], projects: [{ id: 'project', name: '', description: '', priority: 'P1', status: 'active', playbookId: 'pb', playbookVersion: 1, workflowSnapshot: { playbookId: 'pb', playbookVersion: 1, stages: [stage] }, currentStageId: 'stage', createdAt: '', updatedAt: '', lastActiveAt: '' }], claims: [], evidences: [], artifacts: [], decisions: [], aiReviews: [] } as AppData
-  expect(migrateData(data).data.projects[0].workflowSnapshot.stages[0].steps[0].checklist[0].responseRequired).toBe(false)
+test.each([1, 2, 3])('v%s migration removes legacy checklist fields from persisted playbooks', (version) => {
+  const result = migrateData(legacyPlaybookData(version))
+  const checklist = result.data.playbooks[0].stages[0].steps[0].checklist
+
+  expect(result.changed).toBe(true)
+  expect(checklist).toEqual([{ id: 'c121', text: '机会描述' }])
+})
+
+test('migrates every non-empty legacy response with stable compatibility IDs', () => {
+  const result = migrateData(legacyData(2, [
+    { id: 'c121', text: '机会描述', done: true, response: '机会回答' },
+    { id: 'c131', text: '核心问题', done: false, responsePrompt: '问题引导', response: '问题回答' },
+    { id: 'c132', text: '空回答', done: true, response: '   ' }
+  ]))
+  const step = migratedStep(result.data)
+
+  expect(step.questions).toEqual([
+    { id: 'legacy_question_c121', q: '机会描述' },
+    { id: 'legacy_question_c131', q: '问题引导' }
+  ])
+  expect(step.answers).toEqual({ legacy_question_c121: '机会回答', legacy_question_c131: '问题回答' })
+  expect(step.checklist).toEqual([
+    { id: 'c121', text: '机会描述', done: true },
+    { id: 'c131', text: '核心问题', done: false },
+    { id: 'c132', text: '空回答', done: true }
+  ])
+})
+
+test('preserves an existing compatibility answer instead of overwriting it', () => {
+  const result = migrateData(legacyData(2, [{ id: 'c121', text: '机会描述', done: true, response: '旧回答' }], {
+    legacy_question_c121: '新回答'
+  }))
+  const step = migratedStep(result.data)
+
+  expect(step.answers).toEqual({ legacy_question_c121: '新回答' })
+  expect(step.questions).toEqual([])
+})
+
+test('removes all legacy checklist fields and is idempotent', () => {
+  const first = migrateData(legacyData(1, [{ id: 'c121', text: '机会描述', done: true, responseRequired: false, responsePrompt: '引导', response: '' }]))
+  const beforeSecondMigration = structuredClone(first.data)
+  const second = migrateData(first.data)
+
+  expect(first.data.projects[0].workflowSnapshot.stages[0].steps[0].checklist[0]).toEqual({ id: 'c121', text: '机会描述', done: true })
+  expect(second.changed).toBe(false)
+  expect(second.data).toEqual(beforeSecondMigration)
+})
+
+test('fills missing Todo questions in persisted playbooks and existing project snapshots in canonical order', () => {
+  const data = legacyData(3, [])
+  const defaultPlaybook = buildDefaultPlaybook()
+  for (const step of defaultPlaybook.stages.flatMap((stage) => stage.steps)) {
+    if (step.id === 'op_s2') step.questions = step.questions.filter((question) => question.id !== 'q120')
+  }
+  data.playbooks = [defaultPlaybook]
+  const snapshot = data.projects[0].workflowSnapshot.stages[0].steps[0]
+  snapshot.id = 'op_s2'
+  snapshot.questions = [{ id: 'q122', q: '保留的项目场景问题' }, { id: 'existing', q: '保留的项目问题' }]
+  snapshot.answers = { q122: '保留的场景回答', existing: '保留的项目回答' }
+
+  const result = migrateData(data)
+  const defaultSteps = result.data.playbooks[0].stages.flatMap((stage) => stage.steps)
+
+  expect(defaultSteps.find((step) => step.id === 'op_s2')?.questions.map((question) => question.id)).toContain('q120')
+  expect(snapshot.questions.map((question) => question.id)).toEqual(['q120', 'q121', 'q122', 'existing'])
+  expect(snapshot.questions.find((question) => question.id === 'q122')?.q).toBe('保留的项目场景问题')
+  expect(snapshot.answers).toEqual({ q122: '保留的场景回答', existing: '保留的项目回答' })
+})
+
+test('default questions cover written Todo outputs without adding inputs for submission actions', () => {
+  const steps = buildDefaultPlaybook().stages.flatMap((stage) => stage.steps)
+  const byId = (stepId: string) => steps.find((step) => step.id === stepId)!.questions.map((question) => question.id)
+
+  expect(byId('op_s2')).toEqual(['q120', 'q121', 'q122'])
+  expect(byId('op_s4')).toEqual(['q141'])
+  expect(byId('co_s2')).toEqual(['q320', 'q321', 'q322', 'q323'])
+  expect(byId('mv_s3')).toEqual(['q530', 'q531', 'q532'])
 })

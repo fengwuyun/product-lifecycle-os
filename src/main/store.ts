@@ -87,17 +87,31 @@ export function saveDB(): void {
   }, 250)
 }
 
-export function flushDB(): void {
+export function flushDB(strict = false): void {
   if (saveTimer) {
     clearTimeout(saveTimer)
     saveTimer = null
   }
-  try { persistNow() } catch (err) { console.error('[store] flush failed', err) }
+  try { persistNow() } catch (err) {
+    if (strict) throw new Error('数据保存失败')
+    console.error('[store] flush failed', err)
+  }
+}
+
+export function replaceLoadedDB(data: AppData): void {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = null
+  db = data
 }
 
 export function resetDB(): void {
+  const artifactRoot = path.resolve(artifactsDir())
+  const expectedParent = path.resolve(dataDir())
+  if (path.dirname(artifactRoot) !== expectedParent) throw new Error('资料目录异常，已取消清空以保护数据')
+  fs.rmSync(artifactRoot, { recursive: true, force: true })
+  fs.mkdirSync(artifactRoot, { recursive: true })
   db = seedDB()
-  flushDB()
+  flushDB(true)
 }
 
 let counter = 0

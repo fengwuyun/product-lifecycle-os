@@ -60,6 +60,7 @@ export function Sidebar() {
   const shortcut = useCallback((e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); setCreateOpen(true) } }, [])
   useEffect(() => { window.addEventListener('keydown', shortcut); return () => window.removeEventListener('keydown', shortcut) }, [shortcut])
   const openProjects = workspace.projectIds.map((id) => data?.projects.find((p) => p.id === id)).filter(Boolean)
+  const hasExpandedProjects = openProjects.some((project) => project && workspace.expandedProjectIds.includes(project.id))
 
   return <aside className="w-[248px] flex-shrink-0 bg-sidebar text-white flex flex-col select-none">
     <div className="px-4 pt-5 pb-4 flex items-center gap-2.5"><LogoMark /><div className="leading-tight"><div className="font-bold text-[13.5px] tracking-wide">Lifecycle OS</div><div className="text-[10.5px] text-white/40 font-medium">产品生命周期决策台</div></div></div>
@@ -67,7 +68,7 @@ export function Sidebar() {
     <nav className="mt-4 px-3 space-y-0.5">{NAV.map((item) => { const active = item.end ? location.pathname === '/' : location.pathname.startsWith(item.to); return <NavLink key={item.to} to={item.to} className={`flex items-center gap-2.5 h-9 px-3 rounded-[9px] text-[13px] font-medium transition-colors ${active ? 'bg-white/10 text-white' : 'text-white/55 hover:text-white hover:bg-white/5'}`}><item.icon size={15.5} className={active ? 'text-indigo-300' : ''} />{item.label}</NavLink> })}</nav>
 
     <div className="mt-4 flex-1 min-h-0 overflow-y-auto px-3 pb-3">
-      {openProjects.length > 0 && <div className="text-[10.5px] font-semibold text-white/35 tracking-widest px-3 mb-1.5">已打开项目</div>}
+      {openProjects.length > 0 && <div className="flex items-center justify-between px-3 mb-1.5"><div className="text-[10.5px] font-semibold text-white/35 tracking-widest">已打开项目 · {openProjects.length}</div>{hasExpandedProjects && <button type="button" onClick={() => workspace.collapseAll()} className="text-[10.5px] text-white/45 hover:text-white transition-colors">全部折叠</button>}</div>}
       <div className="space-y-1">{openProjects.map((project) => {
         if (!project) return null
         const expanded = workspace.expandedProjectIds.includes(project.id), activeProject = routeProjectId === project.id
