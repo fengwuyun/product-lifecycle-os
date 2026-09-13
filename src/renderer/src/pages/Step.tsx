@@ -9,6 +9,17 @@ import { Button, Card, Badge, StrengthBadge, EmptyState } from '../components/ui
 import { EvidenceModal, ArtifactModal, ArtifactViewer } from '../components/modals'
 import type { ProjectStep } from '@shared/types'
 
+type PendingStepSave = {
+  revision: number
+  stepKey: string
+  request: {
+    projectId: string
+    stageId: string
+    stepId: string
+    patch: { checklist: ProjectStep['checklist']; answers: ProjectStep['answers'] }
+  }
+}
+
 export function StepPage() {
   const { projectId, stageId, stepId } = useParams()
   const navigate = useNavigate()
@@ -24,20 +35,42 @@ export function StepPage() {
   // 本地草稿状态（输入即时响应，失焦/切换时保存）
   const [draft, setDraft] = useState<ProjectStep | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSaveRef = useRef<PendingStepSave | null>(null)
   const saveRevisionRef = useRef(0)
   const currentStepKey = `${projectId ?? ''}:${stageId ?? ''}:${stepId ?? ''}`
   const currentStepKeyRef = useRef(currentStepKey)
   const savedAtRef = useRef<string>('')
   currentStepKeyRef.current = currentStepKey
 
+  const writeSave = async (pending: PendingStepSave) => {
+    try {
+      await window.api.stepSave(pending.request)
+      await load()
+      if (saveRevisionRef.current === pending.revision && currentStepKeyRef.current === pending.stepKey) setSaveState('saved')
+    } catch (err) {
+      if (saveRevisionRef.current === pending.revision && currentStepKeyRef.current === pending.stepKey) {
+        setSaveState('error')
+        toast((err as Error).message, 'bad')
+      }
+    }
+  }
+
+  const flushPendingSave = async () => {
+    const pending = pendingSaveRef.current
+    if (!pending) return
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    pendingSaveRef.current = null
+    await writeSave(pending)
+  }
+
   useEffect(() => {
     saveRevisionRef.current += 1
     setSaveState('idle')
     return () => {
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current)
-        saveTimer.current = null
-      }
+      void flushPendingSave()
     }
   }, [currentStepKey])
 
@@ -46,11 +79,11 @@ export function StepPage() {
     const project = data.projects.find((p) => p.id === projectId)
     const stage = project?.workflowSnapshot.stages.find((s) => s.id === stageId)
     const step = stage?.steps.find((s) => s.id === stepId)
-    if (step && step.id !== savedAtRef.current) {
-      savedAtRef.current = step.id
+    if (step && currentStepKey !== savedAtRef.current) {
+      savedAtRef.current = currentStepKey
       setDraft(JSON.parse(JSON.stringify(step)))
     }
-  }, [data, projectId, stageId, stepId])
+  }, [data, currentStepKey, projectId, stageId, stepId])
 
   if (!data || !draft) return <div className="p-10 text-center text-ink-3 text-[13px]">加载中…</div>
   const project = data.projects.find((p) => p.id === projectId)
@@ -65,23 +98,20 @@ export function StepPage() {
 
   const persist = (checklist: ProjectStep['checklist'], answers: ProjectStep['answers']) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    const revision = ++saveRevisionRef.current
-    const stepKey = currentStepKey
-    setSaveState('saving')
-    saveTimer.current = setTimeout(async () => {
-      try {
-        await window.api.stepSave({
-          projectId: project.id, stageId: stage.id, stepId: stepId!,
-          patch: { checklist, answers }
-        })
-        await load()
-        if (saveRevisionRef.current === revision && currentStepKeyRef.current === stepKey) setSaveState('saved')
-      } catch (err) {
-        if (saveRevisionRef.current === revision && currentStepKeyRef.current === stepKey) {
-          setSaveState('error')
-          toast((err as Error).message, 'bad')
-        }
+    const pending: PendingStepSave = {
+      revision: ++saveRevisionRef.current,
+      stepKey: currentStepKey,
+      request: {
+        projectId: project.id,
+        stageId: stage.id,
+        stepId: stepId!,
+        patch: { checklist, answers }
       }
+    }
+    pendingSaveRef.current = pending
+    setSaveState('saving')
+    saveTimer.current = setTimeout(() => {
+      void flushPendingSave()
     }, 450)
   }
 
@@ -103,11 +133,13 @@ export function StepPage() {
     const willComplete = draft.status !== 'done'
     try {
       // 先落盘草稿再标记完成
+      await flushPendingSave()
       await window.api.stepSave({
         projectId: project.id, stageId: stage.id, stepId: stepId!,
         patch: { checklist: draft.checklist, answers: draft.answers }
       })
       await window.api.stepComplete({ projectId: project.id, stageId: stage.id, stepId: stepId!, completed: willComplete })
+      savedAtRef.current = ''
       await load()
       toast(willComplete ? '执行步骤（Steps）已完成' : '已重新打开', 'ok')
       if (willComplete) {

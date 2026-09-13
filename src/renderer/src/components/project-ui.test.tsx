@@ -428,3 +428,28 @@ test('阶段没有假设或证据时空状态保留中文优先术语', () => {
   expect(screen.getByText('还没有假设（Claims）。写下你当前最想验证的假设（Claims），AI 审查时会逐条检查证据（Evidence）支持度。')).toBeTruthy()
   expect(screen.getByText('暂无证据（Evidence）—— 去和真实用户聊聊，把发生的事实记下来')).toBeTruthy()
 })
+
+test('阶段 Todo 和退出条件使用可聚焦的原生复选框，并支持 Enter 切换', async () => {
+  const stage = {
+    id: 'stage-checkboxes', name: '键盘阶段', short: '', order: 1, introduction: '', objective: '', keyQuestion: '', methodology: [],
+    todos: [{ id: 'todo-1', text: '完成访谈', done: false }], steps: [], deliverables: [],
+    exitCriteria: [{ id: 'criterion-1', text: '确认退出条件', met: false }], minEvidence: 0, status: 'active'
+  } as Project['workflowSnapshot']['stages'][number]
+  const checkboxProject = { ...project, currentStageId: stage.id, workflowSnapshot: { ...project.workflowSnapshot, stages: [stage] } }
+  const stageUpdate = vi.fn().mockResolvedValue(undefined)
+  window.api = { stageUpdate, getData: vi.fn().mockResolvedValue({ ...emptyData, projects: [checkboxProject] }) } as unknown as typeof window.api
+  useApp.setState({ data: { ...emptyData, projects: [checkboxProject] }, loading: false, toasts: [], portfolioView: 'list' })
+  render(<MemoryRouter initialEntries={[`/project/${project.id}/stage/${stage.id}`]}>
+    <Routes><Route path="/project/:projectId/stage/:stageId" element={<StagePage />} /></Routes>
+  </MemoryRouter>)
+
+  const todo = screen.getByRole('checkbox', { name: '完成访谈' })
+  const criterion = screen.getByRole('checkbox', { name: '确认退出条件' })
+  expect(todo.tabIndex).toBe(0)
+  todo.focus()
+  fireEvent.keyDown(todo, { key: 'Enter' })
+  await waitFor(() => expect(stageUpdate).toHaveBeenCalledWith(expect.objectContaining({ patch: expect.objectContaining({ todos: [expect.objectContaining({ done: true })] }) })))
+  criterion.focus()
+  fireEvent.keyDown(criterion, { key: 'Enter' })
+  await waitFor(() => expect(stageUpdate).toHaveBeenCalledWith(expect.objectContaining({ patch: expect.objectContaining({ exitCriteria: [expect.objectContaining({ met: true })] }) })))
+})

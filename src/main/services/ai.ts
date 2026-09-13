@@ -279,7 +279,15 @@ export async function projectSummary(p: { projectId: string }): Promise<{ sectio
           status: s.status,
           decision: s.decision
         }
-        return `${s.name}：${JSON.stringify(gate)}`
+        const stepAnswers = s.steps.map((step) => ({
+          执行步骤: step.name,
+          状态: step.status,
+          问答: step.questions.map((question) => ({
+            问题: question.q,
+            回答: step.answers[question.id] || ''
+          }))
+        }))
+        return `${s.name}：${JSON.stringify(gate)}\n执行步骤问答：${JSON.stringify(stepAnswers)}`
       }),
       '',
       '【全部 Deliverable 内容】',

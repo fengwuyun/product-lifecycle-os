@@ -172,8 +172,13 @@ export function StagePage() {
       <Card className="p-4 mb-6">
         <div className="space-y-2">
           {stage.todos.map((t) => (
-            <label key={t.id} className="flex items-center gap-3 text-[13.5px] cursor-pointer group" onClick={() => toggleTodo(t.id)}>
-              {t.done ? <CheckSquare size={17} className="text-ok flex-shrink-0" /> : <Square size={17} className="text-line-2 group-hover:text-primary flex-shrink-0" />}
+            <label key={t.id} className="flex items-center gap-3 text-[13.5px] cursor-pointer group">
+              <input type="checkbox" checked={t.done} onChange={() => toggleTodo(t.id)} onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void toggleTodo(t.id)
+                }
+              }} className="size-[17px] shrink-0 accent-ok" />
               <span className={t.done ? 'line-through text-ink-3' : ''}>{t.text}</span>
             </label>
           ))}
@@ -317,8 +322,13 @@ export function StagePage() {
       <Card className="p-4 mb-6">
         <div className="space-y-2">
           {stage.exitCriteria.map((c) => (
-            <label key={c.id} className="flex items-center gap-3 text-[13.5px] cursor-pointer group" onClick={() => toggleCriteria(c.id)}>
-              {c.met ? <CheckSquare size={17} className="text-ok flex-shrink-0" /> : <Square size={17} className="text-line-2 group-hover:text-primary flex-shrink-0" />}
+            <label key={c.id} className="flex items-center gap-3 text-[13.5px] cursor-pointer group">
+              <input type="checkbox" checked={c.met} onChange={() => toggleCriteria(c.id)} onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void toggleCriteria(c.id)
+                }
+              }} className="size-[17px] shrink-0 accent-ok" />
               <span className={c.met ? 'text-ink-2' : ''}>{c.text}</span>
             </label>
           ))}

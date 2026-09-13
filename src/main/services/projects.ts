@@ -4,6 +4,7 @@ import type {
 } from '../../shared/types'
 import { getDB, saveDB, id, nowISO, flushDB } from '../store'
 import { DEMO_PROJECT } from '../defaultPlaybook'
+import { deleteManagedArtifactFiles } from './artifacts'
 
 // ─── 查询工具 ───
 
@@ -166,6 +167,10 @@ export function setProjectStatus(p: { id: string; status: ProjectStatus; reason?
 
 export function deleteProject(p: { id: string }): void {
   const db = getDB()
+  const projectArtifacts = db.artifacts.filter((artifact) => artifact.projectId === p.id)
+  // Delete copied files before dropping their metadata. The helper refuses paths outside
+  // the app artifact root, so an imported/original path can never be deleted here.
+  deleteManagedArtifactFiles(projectArtifacts)
   db.projects = db.projects.filter((x) => x.id !== p.id)
   db.claims = db.claims.filter((x) => x.projectId !== p.id)
   db.evidences = db.evidences.filter((x) => x.projectId !== p.id)

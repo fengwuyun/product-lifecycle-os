@@ -13,6 +13,25 @@ function metaOf(a: Artifact): ArtifactMeta {
   return meta
 }
 
+function isInsideArtifactsDir(filePath: string): boolean {
+  const root = path.resolve(artifactsDir())
+  const candidate = path.resolve(filePath)
+  const relative = path.relative(root, candidate)
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
+
+/** Removes only copied file artifacts that are physically contained by the app artifact root. */
+export function deleteManagedArtifactFiles(artifacts: Artifact[]): void {
+  const paths = [...new Set(artifacts.flatMap((artifact) => artifact.filePath ? [artifact.filePath] : []))]
+  for (const filePath of paths) {
+    if (!isInsideArtifactsDir(filePath) || !fs.existsSync(filePath)) continue
+    if (fs.lstatSync(filePath).isDirectory()) throw new Error('资料文件路径异常，已取消删除以保护数据')
+  }
+  for (const filePath of paths) {
+    if (isInsideArtifactsDir(filePath) && fs.existsSync(filePath)) fs.unlinkSync(filePath)
+  }
+}
+
 async function parsePDF(buf: Buffer): Promise<{ text: string }> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const doc = await pdfjs.getDocument({
@@ -178,9 +197,7 @@ export function getArtifactContent(p: { id: string }): Artifact | null {
 export function deleteArtifact(p: { id: string }): void {
   const db = getDB()
   const art = db.artifacts.find((a) => a.id === p.id)
-  if (art?.filePath && art.filePath.startsWith(artifactsDir())) {
-    try { fs.unlinkSync(art.filePath) } catch { /* ignore */ }
-  }
+  if (art) deleteManagedArtifactFiles([art])
   db.artifacts = db.artifacts.filter((a) => a.id !== p.id)
   // 清理成果/证据中的引用
   for (const prj of db.projects) {

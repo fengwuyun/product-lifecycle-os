@@ -5,7 +5,7 @@ import path from 'node:path'
 import { afterEach, expect, test, vi } from 'vitest'
 const runtime = vi.hoisted(() => ({ userData: '' }))
 vi.mock('electron', () => ({ app: { getPath: () => runtime.userData } }))
-import { getDB, saveDB, replaceLoadedDB, flushDB } from './store'
+import { getDB, saveDB, replaceLoadedDB, flushDB, resetDB } from './store'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -28,4 +28,17 @@ test('replaceLoadedDB replaces the cache and cancels the old debounced save', ()
   expect(write).not.toHaveBeenCalled()
   flushDB(true)
   expect(JSON.parse(fs.readFileSync(path.join(runtime.userData, 'data', 'data.json'), 'utf8')).meta.createdAt).toBe('restored')
+})
+
+test('resetDB removes copied artifact files before seeding empty data', () => {
+  runtime.userData = fs.mkdtempSync(path.join(os.tmpdir(), 'plos-store-backup-test-'))
+  const copied = path.join(runtime.userData, 'data', 'artifacts', 'copied.txt')
+  fs.mkdirSync(path.dirname(copied), { recursive: true })
+  fs.writeFileSync(copied, 'copied')
+
+  resetDB()
+
+  expect(fs.existsSync(copied)).toBe(false)
+  expect(fs.existsSync(path.join(runtime.userData, 'data', 'artifacts'))).toBe(true)
+  expect(getDB().artifacts).toEqual([])
 })

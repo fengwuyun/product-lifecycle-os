@@ -1,6 +1,8 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import type { AppData } from '../../shared/types'
 
+const mocked = vi.hoisted(() => ({ deleteManagedArtifactFiles: vi.fn() }))
+
 vi.mock('../store', () => ({
   getDB: vi.fn(),
   saveDB: vi.fn(),
@@ -8,9 +10,10 @@ vi.mock('../store', () => ({
   nowISO: vi.fn(() => '2026-09-12T00:00:00.000Z'),
   flushDB: vi.fn()
 }))
+vi.mock('./artifacts', () => ({ deleteManagedArtifactFiles: mocked.deleteManagedArtifactFiles }))
 
 import { getDB } from '../store'
-import { createProject } from './projects'
+import { createProject, deleteProject } from './projects'
 
 function legacyPlaybookDatabase(): AppData {
   return {
@@ -28,6 +31,7 @@ function legacyPlaybookDatabase(): AppData {
 
 beforeEach(() => {
   vi.mocked(getDB).mockReturnValue(legacyPlaybookDatabase())
+  mocked.deleteManagedArtifactFiles.mockReset()
 })
 
 test('createProject copies only pure checklist fields from a persisted playbook', () => {
@@ -37,4 +41,15 @@ test('createProject copies only pure checklist fields from a persisted playbook'
   expect(db.projects[0].workflowSnapshot.stages[0].steps[0].checklist).toEqual([
     { id: 'c121', text: '机会描述', done: false }
   ])
+})
+
+test('deleteProject removes its copied artifact files before dropping metadata', () => {
+  const db = vi.mocked(getDB)()
+  db.projects = [{ id: 'project', name: '', description: '', priority: 'P1', status: 'active' }] as AppData['projects']
+  db.artifacts = [{ id: 'artifact', projectId: 'project', stageId: 'stage', title: '', sourceType: 'file', filePath: 'managed-file', hasContent: false, extractedContent: '', createdAt: '' }]
+
+  deleteProject({ id: 'project' })
+
+  expect(mocked.deleteManagedArtifactFiles).toHaveBeenCalledWith([expect.objectContaining({ id: 'artifact' })])
+  expect(db.artifacts).toEqual([])
 })

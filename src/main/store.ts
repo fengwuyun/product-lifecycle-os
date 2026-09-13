@@ -105,8 +105,13 @@ export function replaceLoadedDB(data: AppData): void {
 }
 
 export function resetDB(): void {
+  const artifactRoot = path.resolve(artifactsDir())
+  const expectedParent = path.resolve(dataDir())
+  if (path.dirname(artifactRoot) !== expectedParent) throw new Error('资料目录异常，已取消清空以保护数据')
+  fs.rmSync(artifactRoot, { recursive: true, force: true })
+  fs.mkdirSync(artifactRoot, { recursive: true })
   db = seedDB()
-  flushDB()
+  flushDB(true)
 }
 
 let counter = 0

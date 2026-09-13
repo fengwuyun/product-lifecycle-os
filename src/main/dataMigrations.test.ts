@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import type { AppData } from '../shared/types'
 import { migrateData, DATA_VERSION } from './dataMigrations'
+import { buildDefaultPlaybook } from './defaultPlaybook'
 
 type LegacyItem = {
   id: string
@@ -94,4 +95,26 @@ test('removes all legacy checklist fields and is idempotent', () => {
   expect(first.data.projects[0].workflowSnapshot.stages[0].steps[0].checklist[0]).toEqual({ id: 'c121', text: '机会描述', done: true })
   expect(second.changed).toBe(false)
   expect(second.data).toEqual(beforeSecondMigration)
+})
+
+test('only fills missing q120/q130 in the persisted default Playbook and keeps project snapshots unchanged', () => {
+  const data = legacyData(3, [])
+  const defaultPlaybook = buildDefaultPlaybook()
+  for (const step of defaultPlaybook.stages.flatMap((stage) => stage.steps)) {
+    if (step.id === 'op_s2') step.questions = step.questions.filter((question) => question.id !== 'q120')
+    if (step.id === 'op_s3') step.questions = step.questions.filter((question) => question.id !== 'q130')
+  }
+  data.playbooks = [defaultPlaybook]
+  const snapshot = data.projects[0].workflowSnapshot.stages[0].steps[0]
+  snapshot.id = 'op_s2'
+  snapshot.questions = [{ id: 'existing', q: '保留的项目问题' }]
+  snapshot.answers = { existing: '保留的项目回答' }
+
+  const result = migrateData(data)
+  const defaultSteps = result.data.playbooks[0].stages.flatMap((stage) => stage.steps)
+
+  expect(defaultSteps.find((step) => step.id === 'op_s2')?.questions.map((question) => question.id)).toContain('q120')
+  expect(defaultSteps.find((step) => step.id === 'op_s3')?.questions.map((question) => question.id)).toContain('q130')
+  expect(snapshot.questions).toEqual([{ id: 'existing', q: '保留的项目问题' }])
+  expect(snapshot.answers).toEqual({ existing: '保留的项目回答' })
 })

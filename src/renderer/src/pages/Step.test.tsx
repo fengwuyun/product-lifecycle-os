@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { AppData } from '@shared/types'
 import { useApp } from '../store/app'
@@ -111,4 +111,54 @@ test('切换 Step 后旧保存完成不会回写新 Step 的保存状态', async
     expect(useApp.getState().data).toBe(reloadedData)
     expect(screen.queryByRole('status')).toBeNull()
   })
+})
+
+test('跨项目复用 Step ID 时，草稿和状态按项目、阶段、Step 完整定位重新载入', async () => {
+  const crossProjectData = structuredClone(data)
+  const secondProject = structuredClone(crossProjectData.projects[0])
+  secondProject.id = 'project-b'
+  secondProject.name = '另一个项目'
+  const secondStep = secondProject.workflowSnapshot.stages[0].steps[1]
+  secondStep.answers = { q120: 'B 项目回答' }
+  secondStep.status = 'done'
+  crossProjectData.projects.push(secondProject)
+  useApp.setState({ data: crossProjectData, loading: false, toasts: [] })
+
+  render(<MemoryRouter initialEntries={['/project/project/stage/stage/step/step']}>
+    <Link to="/project/project-b/stage/stage/step/step">前往另一个项目</Link>
+    <Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes>
+  </MemoryRouter>)
+
+  await screen.findByText('问题背景是什么？')
+  fireEvent.click(screen.getByRole('link', { name: '前往另一个项目' }))
+  expect(await screen.findByDisplayValue('B 项目回答')).toBeTruthy()
+  expect(screen.getByRole('button', { name: '重新打开' })).toBeTruthy()
+})
+
+test('输入后立即导航会将原 Step 的完整定位快照落盘', async () => {
+  render(<MemoryRouter initialEntries={['/project/project/stage/stage/step/step']}><Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes></MemoryRouter>)
+  const answer = (await screen.findAllByPlaceholderText('基于真实观察回答，不要臆测……'))[0]
+  fireEvent.change(answer, { target: { value: '立即保存的回答' } })
+  fireEvent.click(screen.getByRole('link', { name: '下一步：梳理方案' }))
+
+  await waitFor(() => expect(window.api.stepSave).toHaveBeenCalledWith(expect.objectContaining({
+    projectId: 'project', stageId: 'stage', stepId: 'step', patch: expect.objectContaining({ answers: { q120: '立即保存的回答' } })
+  })))
+})
+
+test('重新打开后用已加载的状态同步当前 Step 草稿', async () => {
+  const doneData = structuredClone(data)
+  doneData.projects[0].workflowSnapshot.stages[0].steps[1].status = 'done'
+  const reopenedData = structuredClone(doneData)
+  reopenedData.projects[0].workflowSnapshot.stages[0].steps[1].status = 'todo'
+  useApp.setState({ data: doneData, loading: false, toasts: [] })
+  window.api = {
+    stepSave: vi.fn().mockResolvedValue(undefined),
+    stepComplete: vi.fn().mockResolvedValue(undefined),
+    getData: vi.fn().mockResolvedValue(reopenedData)
+  } as unknown as typeof window.api
+
+  render(<MemoryRouter initialEntries={['/project/project/stage/stage/step/step']}><Routes><Route path="/project/:projectId/stage/:stageId/step/:stepId" element={<StepPage />} /></Routes></MemoryRouter>)
+  await userEvent.click(await screen.findByRole('button', { name: '重新打开' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '完成执行步骤（Steps）' })).toBeTruthy())
 })
