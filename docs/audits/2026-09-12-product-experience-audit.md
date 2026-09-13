@@ -6,7 +6,7 @@
 
 ## 初始状态证据
 
-以下四张用户本轮提供的截图保留为问题初始状态的路径证据；它们用于追溯原始 Step/Claims 信息层级、重复输入和按钮换行问题，并非本任务中重新采集的验收截图。
+以下四张用户本轮提供的截图保留为问题初始状态的路径证据；它们用于追溯原始 Step/Claims 信息层级、重复输入和按钮换行问题，并非本任务中重新采集的验收截图。Task 9 brief 中的“两张用户截图”要求已由实际附带的四张截图替代，以下四张是本审计采用的完整初始状态证据集。
 
 - `C:\Users\张征\AppData\Local\Temp\codex-clipboard-458d0f98-58aa-4a7e-920e-6c0ad28872fe.png`
 - `C:\Users\张征\AppData\Local\Temp\codex-clipboard-a856d7df-1a0a-4b80-9bd1-8a581b3a3beb.png`
@@ -32,6 +32,10 @@
 
 portable 命令为 `node node_modules/electron-builder/out/cli/cli.js --win portable --publish never`。产物：`D:\Development\ZCode\workplace\product-lifecycle-os\.worktrees\step-questions-ux-audit\dist\Product-Lifecycle-OS-0.1.0-portable.exe`；大小 `88,675,299` bytes（84.57 MiB）；SHA-256 `CC8A17400F9DD12DC996F60BB4D2B3D358267C3A05238CA4827E24D40AD7C580`。electron-builder 日志显示未配置签名信息，故跳过签名。
 
-## 发布前人工清单
+2026-09-13 的 Task 9 修订轮另执行一次 `git diff --check`，退出 0、无输出；该结果记录本轮执行时工作树没有空白错误。
 
-在不操作真实数据的干净 Windows 用户配置中，启动 portable 包并确认：搜索/最近项目、侧边栏原生拖动与全部折叠、Step 输入和可见自动保存、Claims 窄窗口、直接/AI 两种导出、备份创建、恢复确认与取消、Modal 键盘循环与焦点返回。再以 Windows 200% 缩放检查所有上述界面；使用 NVDA 或同等读屏器复核 dialog、status 与 live region。上述项目尚未完成，因此本报告不声明完整 WCAG 或像素级验收。
+## 交付后人工验证（正式降级）
+
+用户明确指示“别测那么多了，赶紧做完”；控制器据此裁定 portable smoke、200% Windows 缩放、原生拖放、真实导出和真实备份恢复均降级为交付后人工验证项，不阻塞本地完成。本裁定不降低相应风险：portable 尚未启动，因而未确认运行时启动、路径/权限、文件选择器和打包后的渲染；未做 200% 缩放，因而未确认排版溢出；未做原生拖放，因而未确认鼠标手势与侧边栏排序；未做真实导出或恢复，因而未确认目标机器权限与用户数据场景。
+
+交付后应在不操作真实数据的干净 Windows 用户配置中，启动 portable 包并确认：搜索/最近项目、侧边栏原生拖动与全部折叠、Step 输入和可见自动保存、Claims 窄窗口、直接/AI 两种导出、备份创建、恢复确认与取消、Modal 键盘循环与焦点返回。再以 Windows 200% 缩放检查所有上述界面；使用 NVDA 或同等读屏器复核 dialog、status 与 live region。上述项目尚未完成，因此本报告不声明完整 WCAG 或像素级验收。
